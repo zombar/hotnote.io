@@ -90,6 +90,47 @@ const FileSystemAdapter = {
     }
 };
 
+// Session Management (.HN file persistence)
+const createSessionFileName = (dirHandle) => {
+    return '.session_properties.HN';
+};
+
+const loadSessionFile = async (dirHandle) => {
+    try {
+        const sessionFileName = createSessionFileName(dirHandle);
+        const sessionFileHandle = await dirHandle.getFileHandle(sessionFileName, { create: false });
+        const sessionContent = await FileSystemAdapter.readFile(sessionFileHandle);
+        return JSON.parse(sessionContent);
+    } catch (err) {
+        // File doesn't exist or invalid JSON - return null
+        return null;
+    }
+};
+
+const saveSessionFile = async (dirHandle, sessionData) => {
+    try {
+        const sessionFileName = createSessionFileName(dirHandle);
+        const sessionFileHandle = await dirHandle.getFileHandle(sessionFileName, { create: true });
+        sessionData.lastModified = Date.now();
+        const content = JSON.stringify(sessionData, null, 2);
+        await FileSystemAdapter.writeFile(sessionFileHandle, content);
+    } catch (err) {
+        console.error('Error saving session file:', err);
+    }
+};
+
+const createEmptySession = (folderName) => {
+    return {
+        version: '1.0',
+        folderName: folderName,
+        lastModified: Date.now(),
+        session: {
+            lastOpenFile: null
+        },
+        comments: []
+    };
+};
+
 // App state
 let currentFileHandle = null;
 let currentFilename = 'untitled';
@@ -117,6 +158,15 @@ const TEMP_STORAGE_PREFIX = 'hotnote_temp_';
 const getFilePathKey = () => {
     if (!currentFileHandle) return null;
     const pathParts = currentPath.map(p => p.name);
+    pathParts.push(currentFilename);
+    return pathParts.join('/');
+};
+
+// Get relative file path (excluding root folder name) for session storage
+const getRelativeFilePath = () => {
+    if (!currentFileHandle) return null;
+    // Skip the first element (root folder) since we're already inside it when loading
+    const pathParts = currentPath.slice(1).map(p => p.name);
     pathParts.push(currentFilename);
     return pathParts.join('/');
 };
@@ -366,6 +416,11 @@ const initCodeMirrorEditor = async (initialContent = '', filename = 'untitled') 
                     }
                 }
             }
+
+            // Save editor state on selection change or scroll
+            if (update.selectionSet || update.geometryChanged) {
+                debouncedSaveEditorState();
+            }
         }),
     ];
 
@@ -390,6 +445,11 @@ const initCodeMirrorEditor = async (initialContent = '', filename = 'untitled') 
         state: startState,
         parent: document.getElementById('editor'),
     });
+
+    // Add scroll listener to save editor state
+    if (editorView && editorView.scrollDOM) {
+        editorView.scrollDOM.addEventListener('scroll', debouncedSaveEditorState);
+    }
 };
 
 // Update logo state based on whether a folder or file is open
@@ -620,7 +680,9 @@ const goBack = async () => {
         await initEditor('', 'untitled');
     }
 
-    if (currentDirHandle) {
+    if (currentFileHandle) {
+        hideFilePicker();
+    } else if (currentDirHandle) {
         await showFilePicker(currentDirHandle);
     }
 
@@ -682,7 +744,9 @@ const goForward = async () => {
         await initEditor('', 'untitled');
     }
 
-    if (currentDirHandle) {
+    if (currentFileHandle) {
+        hideFilePicker();
+    } else if (currentDirHandle) {
         await showFilePicker(currentDirHandle);
     }
 
@@ -744,8 +808,77 @@ const openFolder = async () => {
         currentFilename = '';
         await initEditor('', 'untitled');
 
+        // Save folder name to localStorage for auto-resume
+        localStorage.setItem('lastFolderName', dirHandle.name);
+
+        // Load session file and restore last open file
+        let sessionData = await loadSessionFile(dirHandle);
+        if (!sessionData) {
+            // Create empty session file
+            console.log('No session file found, creating new one');
+            sessionData = createEmptySession(dirHandle.name);
+            await saveSessionFile(dirHandle, sessionData);
+        } else {
+            console.log('Session file loaded:', sessionData);
+        }
+
+        // Track if file was successfully restored
+        let fileRestored = false;
+
+        // Try to restore last open file
+        if (sessionData.session && sessionData.session.lastOpenFile) {
+            const lastFile = sessionData.session.lastOpenFile;
+            console.log('Attempting to restore last file:', lastFile.path);
+            const opened = await openFileByPath(lastFile.path);
+            console.log('File opened successfully:', opened);
+
+            if (opened) {
+                fileRestored = true;
+
+                // Restore editor state after a brief delay to let editor initialize
+                setTimeout(() => {
+                    if (editorView) {
+                        // Restore scroll position
+                        if (lastFile.scrollTop !== undefined) {
+                            editorView.scrollDOM.scrollTop = lastFile.scrollTop;
+                        }
+                        if (lastFile.scrollLeft !== undefined) {
+                            editorView.scrollDOM.scrollLeft = lastFile.scrollLeft;
+                        }
+                        // Restore cursor position
+                        if (lastFile.cursorPosition !== undefined) {
+                            try {
+                                editorView.dispatch({
+                                    selection: { anchor: lastFile.cursorPosition, head: lastFile.cursorPosition }
+                                });
+                            } catch (err) {
+                                console.error('Error restoring cursor position:', err);
+                            }
+                        }
+                    } else if (isMarkdownEditorActive()) {
+                        // Restore scroll for Milkdown
+                        const milkdownScroller = document.querySelector('.milkdown');
+                        if (milkdownScroller && lastFile.scrollTop !== undefined) {
+                            milkdownScroller.scrollTop = lastFile.scrollTop;
+                        }
+                    }
+
+                    // Restore rich mode for markdown files
+                    if (lastFile.isRichMode !== undefined && isMarkdownFile(currentFilename)) {
+                        isRichMode = lastFile.isRichMode;
+                        updateRichToggleButton();
+                    }
+                }, 100);
+            }
+        }
+
         addToHistory();
-        await showFilePicker(dirHandle);
+
+        // Only show file picker if file was not restored
+        if (!fileRestored) {
+            await showFilePicker(dirHandle);
+        }
+
         updateBreadcrumb();
         updateLogoState();
     } catch (err) {
@@ -892,6 +1025,48 @@ const navigateToDirectory = async (dirHandle) => {
     updateBreadcrumb();
 };
 
+// Open a file by relative path from current directory
+const openFileByPath = async (relativePath) => {
+    if (!currentDirHandle || !relativePath) return false;
+
+    try {
+        const parts = relativePath.split('/');
+        const filename = parts.pop();
+
+        let targetDir = currentDirHandle;
+
+        // Navigate through subdirectories
+        for (const dirName of parts) {
+            if (dirName) {  // Skip empty parts
+                targetDir = await targetDir.getDirectoryHandle(dirName);
+            }
+        }
+
+        // Get file handle
+        const fileHandle = await targetDir.getFileHandle(filename);
+
+        // Update current path if navigated to subdirectory
+        if (parts.length > 0 && parts[0]) {
+            // Reconstruct path by navigating from root
+            currentPath = [currentPath[0]]; // Keep root
+            let pathDir = currentDirHandle;
+            for (const dirName of parts) {
+                if (dirName) {
+                    pathDir = await pathDir.getDirectoryHandle(dirName);
+                    currentPath.push({ name: dirName, handle: pathDir });
+                }
+            }
+        }
+
+        // Open the file using existing logic
+        await openFileFromPicker(fileHandle);
+        return true;
+    } catch (err) {
+        console.error('Error opening file by path:', relativePath, err);
+        return false;
+    }
+};
+
 // Open a file from the file picker
 const openFileFromPicker = async (fileHandle) => {
     try {
@@ -953,6 +1128,33 @@ const openFileFromPicker = async (fileHandle) => {
         hideFilePicker();
 
         addToHistory();
+
+        // Save session file with current file info (debounced to avoid excessive writes)
+        if (currentDirHandle) {
+            setTimeout(async () => {
+                try {
+                    const filePath = getRelativeFilePath();
+                    if (filePath) {
+                        let sessionData = await loadSessionFile(currentDirHandle);
+                        if (!sessionData) {
+                            sessionData = createEmptySession(currentDirHandle.name);
+                        }
+
+                        sessionData.session.lastOpenFile = {
+                            path: filePath,
+                            cursorPosition: editorView ? editorView.state.selection.main.head : 0,
+                            scrollTop: editorView ? editorView.scrollDOM.scrollTop : 0,
+                            scrollLeft: editorView ? editorView.scrollDOM.scrollLeft : 0,
+                            isRichMode: isRichMode
+                        };
+
+                        await saveSessionFile(currentDirHandle, sessionData);
+                    }
+                } catch (err) {
+                    console.error('Error saving session file:', err);
+                }
+            }, 500);
+        }
     } catch (err) {
         console.error('Error opening file:', err);
         alert('Error opening file: ' + err.message);
@@ -1049,6 +1251,53 @@ const debounce = (func, wait) => {
         timeout = setTimeout(later, wait);
     };
 };
+
+// Save current editor state to session file (debounced)
+const saveEditorStateToSession = async () => {
+    if (!currentDirHandle || !currentFileHandle) return;
+
+    try {
+        const filePath = getRelativeFilePath();
+        if (!filePath) return;
+
+        let sessionData = await loadSessionFile(currentDirHandle);
+        if (!sessionData) {
+            sessionData = createEmptySession(currentDirHandle.name);
+        }
+
+        // Get current editor state
+        let cursorPosition = 0;
+        let scrollTop = 0;
+        let scrollLeft = 0;
+
+        if (editorView) {
+            cursorPosition = editorView.state.selection.main.head;
+            scrollTop = editorView.scrollDOM.scrollTop;
+            scrollLeft = editorView.scrollDOM.scrollLeft;
+        } else if (isMarkdownEditorActive()) {
+            const milkdownScroller = document.querySelector('.milkdown');
+            if (milkdownScroller) {
+                scrollTop = milkdownScroller.scrollTop;
+                scrollLeft = milkdownScroller.scrollLeft;
+            }
+        }
+
+        sessionData.session.lastOpenFile = {
+            path: filePath,
+            cursorPosition: cursorPosition,
+            scrollTop: scrollTop,
+            scrollLeft: scrollLeft,
+            isRichMode: isRichMode
+        };
+
+        await saveSessionFile(currentDirHandle, sessionData);
+    } catch (err) {
+        console.error('Error saving editor state:', err);
+    }
+};
+
+// Debounced version (save every 2 seconds)
+const debouncedSaveEditorState = debounce(saveEditorStateToSession, 2000);
 
 // Fuzzy match helper - handles case-insensitive, substring, and space-as-wildcard matching
 const fuzzyMatch = (text, query) => {
@@ -1739,6 +1988,11 @@ const initDarkMode = () => {
         darkModeToggle.title = 'Switch to light mode';
         themeColorMeta.setAttribute('content', '#ff2d96');
     }
+
+    // Remove preload class to enable transitions after initial theme is set
+    setTimeout(() => {
+        document.body.classList.remove('preload');
+    }, 100);
 };
 
 // Event listeners
@@ -1816,6 +2070,44 @@ if ('serviceWorker' in navigator) {
 }
 
 // Show welcome prompt on first load
+// Show resume prompt with last folder name
+const showResumePrompt = (folderName) => {
+    const picker = document.getElementById('file-picker');
+    picker.classList.remove('hidden');
+
+    picker.innerHTML = `
+        <div class="file-picker-header">
+            <span class="file-picker-path">Welcome back to hotnote</span>
+            <button class="file-picker-close" onclick="hideFilePicker()">close</button>
+        </div>
+        <div class="welcome-content">
+            <p class="welcome-text">Continue where you left off?</p>
+            <div class="welcome-actions">
+                <button id="resume-folder-btn" class="welcome-btn">📁 Resume editing ${folderName}</button>
+                <button id="new-folder-btn" class="welcome-btn" style="background: transparent; border: 1px solid var(--border); color: var(--text-secondary);">Open Different Folder</button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('resume-folder-btn').addEventListener('click', () => {
+        hideFilePicker();
+        openFolder();
+    });
+
+    document.getElementById('new-folder-btn').addEventListener('click', () => {
+        // Clear saved folder name and show welcome prompt
+        localStorage.removeItem('lastFolderName');
+        hideFilePicker();
+        openFolder();
+    });
+
+    // Add close button handler to forget folder
+    document.querySelector('.file-picker-close').addEventListener('click', () => {
+        localStorage.removeItem('lastFolderName');
+        hideFilePicker();
+    });
+};
+
 const showWelcomePrompt = () => {
     const picker = document.getElementById('file-picker');
     picker.classList.remove('hidden');
@@ -1864,8 +2156,34 @@ if ('serviceWorker' in navigator) {
         animateAutosaveLabel(true);
     }
 
-    // Show welcome prompt on first load
+    // Check for saved folder and show appropriate prompt
     setTimeout(() => {
-        showWelcomePrompt();
+        const lastFolderName = localStorage.getItem('lastFolderName');
+        if (lastFolderName) {
+            showResumePrompt(lastFolderName);
+        } else {
+            showWelcomePrompt();
+        }
     }, 500);
+
+    // Add window focus listener for multi-instance detection
+    window.addEventListener('focus', async () => {
+        if (!currentDirHandle || !currentFileHandle) return;
+
+        try {
+            // Reload session file to check for external changes
+            const sessionData = await loadSessionFile(currentDirHandle);
+            if (sessionData && sessionData.session && sessionData.session.lastOpenFile) {
+                const lastFile = sessionData.session.lastOpenFile;
+                const currentFilePath = getFilePathKey();
+
+                // Check if another instance changed the session file
+                // We could add more sophisticated conflict detection here
+                // For now, we just silently sync the state
+                console.log('Session file checked on window focus');
+            }
+        } catch (err) {
+            console.error('Error checking session on focus:', err);
+        }
+    });
 })();

@@ -3,6 +3,10 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+/* Only apply theme transitions after initial load */
+body:not(.preload) * {
     transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, text-shadow 0.3s ease;
 }
 
@@ -127,11 +131,26 @@ header.searching::after {
     animation: gradientSlide 2s linear infinite;
 }
 
+header.searching {
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.05),
+        0 0 20px rgba(233, 30, 140, 0.15),
+        0 0 40px rgba(0, 212, 255, 0.1);
+}
+
 /* Animate the navbar gradient when logo is animating */
 .app-logo.compact ~ .nav-controls ~ #new-btn ~ .breadcrumb ~ .actions,
 header:has(.app-logo.compact)::after {
     opacity: 1;
     animation: gradientSlide 3.3s linear forwards;
+}
+
+header:has(.app-logo.compact) {
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.05),
+        0 0 20px rgba(233, 30, 140, 0.15),
+        0 0 40px rgba(0, 212, 255, 0.1);
+    transition: box-shadow 0.5s ease;
 }
 
 @keyframes gradientSlide {
@@ -149,7 +168,7 @@ header:has(.app-logo.compact)::after {
     font-family: Impact, 'Arial Black', sans-serif;
     font-size: 1.5rem;
     font-weight: 900;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.056em;
     color: var(--brand-pink);
     flex-shrink: 0;
     text-shadow:
@@ -168,6 +187,10 @@ header:has(.app-logo.compact)::after {
 
 .app-logo span {
     display: inline-block;
+    transition: opacity 0.8s ease;
+}
+
+body:not(.preload) .app-logo span {
     transition: opacity 0.8s ease, color 0.3s ease, text-shadow 0.3s ease;
 }
 

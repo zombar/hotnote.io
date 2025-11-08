@@ -10,8 +10,16 @@
     <link rel="apple-touch-icon" href="/icon-192.png">
     <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="/style.css">
+    <script>
+        // Apply saved theme before page renders to prevent flash
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ff2d96');
+        }
+    </script>
 </head>
-<body>
+<body class="preload">
     <div id="app">
         <header>
             <div class="app-logo">
