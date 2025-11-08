@@ -135,6 +135,7 @@ const createEmptySession = (folderName) => {
 let currentFileHandle = null;
 let currentFilename = 'untitled';
 let currentDirHandle = null;
+let rootDirHandle = null; // The initially opened directory (for session file)
 let currentPath = []; // Array of {name, handle} objects
 let editorView = null;
 let isRichMode = false; // Track if rich markdown editor is active
@@ -833,6 +834,7 @@ const openFolder = async () => {
     if (!dirHandle) return; // User cancelled
 
     currentDirHandle = dirHandle;
+    rootDirHandle = dirHandle; // Set root directory for session file
     currentPath = [{ name: dirHandle.name, handle: dirHandle }];
     currentFileHandle = null;
     currentFilename = '';
@@ -842,12 +844,12 @@ const openFolder = async () => {
     localStorage.setItem('lastFolderName', dirHandle.name);
 
     // Load session file and restore last open file
-    let sessionData = await loadSessionFile(dirHandle);
+    let sessionData = await loadSessionFile(rootDirHandle);
     if (!sessionData) {
       // Create empty session file
       console.log('No session file found, creating new one');
       sessionData = createEmptySession(dirHandle.name);
-      await saveSessionFile(dirHandle, sessionData);
+      await saveSessionFile(rootDirHandle, sessionData);
     } else {
       console.log('Session file loaded:', sessionData);
     }
@@ -1178,7 +1180,7 @@ const openFileFromPicker = async (fileHandle) => {
               isRichMode: isRichMode,
             };
 
-            await saveSessionFile(currentDirHandle, sessionData);
+            await saveSessionFile(rootDirHandle, sessionData);
           }
         } catch (err) {
           console.error('Error saving session file:', err);
@@ -1321,7 +1323,7 @@ const saveEditorStateToSession = async () => {
       isRichMode: isRichMode,
     };
 
-    await saveSessionFile(currentDirHandle, sessionData);
+    await saveSessionFile(rootDirHandle, sessionData);
   } catch (err) {
     console.error('Error saving editor state:', err);
   }
