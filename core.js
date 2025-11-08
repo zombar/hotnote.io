@@ -1,7 +1,7 @@
 // Core functionality for hotNote - exported for testing
 
 // Constants
-export const TEMP_STORAGE_PREFIX = 'fletcher_temp_';
+export const TEMP_STORAGE_PREFIX = 'hotnote_temp_';
 
 // Get file path key for storage
 export const getFilePathKey = (currentPath, currentFilename) => {

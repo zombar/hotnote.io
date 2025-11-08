@@ -40,6 +40,8 @@ A lightweight, minimalistic code editor and note-taking app with local filesyste
   - JSON
   - YAML
   - Markdown
+  - Bazel (BUILD, WORKSPACE, .bzl files)
+  - Nginx (nginx.conf, .conf files)
   - .gitignore and other ignore files
 - **Minimal, distraction-free interface** with pale, washed-out theme
 - **Dark mode** - Toggle between light and dark themes with persistent preference
@@ -58,7 +60,33 @@ The File System Access API is supported in:
 
 For the best experience, use Chrome or Edge.
 
-## Getting Started
+## Installation
+
+### Web Application
+
+Deploy hotNote to any static hosting service:
+
+1. Build the application:
+   ```bash
+   npm install
+   npm run build
+   ```
+
+2. Deploy the `dist/` directory to:
+   - Netlify
+   - Vercel
+   - GitHub Pages
+   - Cloudflare Pages
+   - Or any static hosting service
+
+3. Or run locally:
+   ```bash
+   npm run preview
+   # Or use any static server:
+   # python -m http.server 8000 --directory dist
+   ```
+
+## Development
 
 1. Install dependencies:
    ```bash
@@ -84,7 +112,7 @@ For the best experience, use Chrome or Edge.
 
 ## Testing
 
-hotNote includes a comprehensive test suite with 101 unit and integration tests:
+hotnote includes a comprehensive test suite with 101 unit and integration tests:
 
 ```bash
 # Run tests in watch mode
@@ -156,7 +184,19 @@ Enable the **autosave** checkbox in the top-right corner to automatically save y
 
 ### Creating New Files
 
-Click the "new" button or press `Ctrl/Cmd + N` to create a new file. hotNote will warn you if you have unsaved changes.
+Click the "new" button or press `Ctrl/Cmd + N` to create a new file:
+
+1. A text input appears in the breadcrumb
+2. Type the filename (e.g., `notes.md`, `script.js`)
+3. Press **Enter** to create the file
+
+The file is immediately:
+- **Created on disk** (in the current directory if browsing, or you'll choose a location)
+- **Opened in the editor** ready for editing
+- **Autosave enabled** automatically for the new file
+- **Added to the file picker** if in a directory context
+
+hotNote will warn you if you have unsaved changes in the current file before creating a new one.
 
 ### Rich Markdown Editing
 
@@ -261,10 +301,35 @@ To use a different theme, modify these variables and update the syntax highlight
 
 ## Technical Details
 
+### Core Technologies
+
 - **Editor**: CodeMirror 6
+- **Rich Markdown**: Milkdown
 - **Build tool**: Vite
-- **Size**: ~200KB minified (excluding language modules)
+- **Size**: ~1.3MB minified (including all language modules)
 - **No backend required**: Fully client-side application
+
+### Architecture
+
+hotNote is a browser-based application that uses the File System Access API for local file operations:
+
+**File System Adapter (`FileSystemAdapter` in app.js)**
+- Uses browser's native File System Access API
+- Provides unified interface for file operations
+- Handles folders, files, reading, and writing
+
+**Key Features:**
+- Direct filesystem access (Chrome/Edge/Safari)
+- Progressive Web App (PWA) capabilities
+- Offline-first architecture
+- Zero backend dependencies
+- LocalStorage for temporary changes
+
+The adapter handles:
+- Opening folders and files
+- Reading and writing file content
+- Directory navigation
+- File metadata access
 
 ## License
 

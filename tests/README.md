@@ -1,6 +1,6 @@
-# Fletcher Test Suite
+# hotnote Test Suite
 
-Comprehensive unit and integration tests for the fletcher code editor.
+Comprehensive unit and integration tests for the hotnote code editor.
 
 ## Test Coverage
 

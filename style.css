@@ -86,6 +86,7 @@ header {
     width: 28px;
     height: 28px;
     flex-shrink: 0;
+    filter: drop-shadow(0 0 4px rgba(255, 200, 100, 0.4));
 }
 
 .nav-controls {
@@ -405,6 +406,13 @@ button:disabled:hover {
     background: var(--bg-primary);
     font-size: 0.9375rem;
     font-family: "MesloLGS NF", "Meslo LG", Menlo, Monaco, "Courier New", monospace;
+}
+
+/* Placeholder text when no file is open */
+.cm-placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+    font-style: italic;
 }
 
 .cm-scroller {

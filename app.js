@@ -1,5 +1,5 @@
-import { EditorView, keymap, lineNumbers } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { EditorView, keymap, lineNumbers, placeholder } from '@codemirror/view';
+import { EditorState, Compartment } from '@codemirror/state';
 import { syntaxHighlighting, HighlightStyle, StreamLanguage } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { javascript } from '@codemirror/lang-javascript';
@@ -18,12 +18,76 @@ import { yaml } from '@codemirror/lang-yaml';
 import { shell as shellMode } from '@codemirror/legacy-modes/mode/shell';
 import { ruby as rubyMode } from '@codemirror/legacy-modes/mode/ruby';
 import { groovy as groovyMode } from '@codemirror/legacy-modes/mode/groovy';
+import { nginx as nginxMode } from '@codemirror/legacy-modes/mode/nginx';
+import { python as pythonMode } from '@codemirror/legacy-modes/mode/python';
 import {
     initMarkdownEditor,
     destroyMarkdownEditor,
     getMarkdownContent,
     isMarkdownEditorActive
 } from './markdown-editor.js';
+
+// File System Adapter - Browser File System Access API
+const FileSystemAdapter = {
+    // Check if file system access is supported
+    isSupported() {
+        return 'showOpenFilePicker' in window && 'showDirectoryPicker' in window;
+    },
+
+    // Open directory picker
+    async openDirectory() {
+        const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        return dirHandle;
+    },
+
+    // List directory entries
+    async listDirectory(dirHandle) {
+        const entries = [];
+        for await (const entry of dirHandle.values()) {
+            entries.push(entry);
+        }
+        return entries;
+    },
+
+    // Read file content
+    async readFile(fileHandle) {
+        const file = await fileHandle.getFile();
+        return await file.text();
+    },
+
+    // Write file content
+    async writeFile(fileHandle, content) {
+        const writable = await fileHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+    },
+
+    // Save file picker (for new files)
+    async saveFilePicker(suggestedName) {
+        return await window.showSaveFilePicker({
+            types: [
+                {
+                    description: 'Text Files',
+                    accept: { 'text/*': ['.txt', '.md', '.js', '.py', '.html', '.css', '.json'] }
+                }
+            ],
+            suggestedName: suggestedName
+        });
+    },
+
+    // Get file metadata (name, etc.)
+    async getFileMetadata(fileHandle) {
+        const file = await fileHandle.getFile();
+        return {
+            name: file.name
+        };
+    },
+
+    // Navigate to subdirectory
+    async navigateToSubdirectory(parentHandle, name) {
+        return await parentHandle.getDirectoryHandle(name);
+    }
+};
 
 // App state
 let currentFileHandle = null;
@@ -46,7 +110,7 @@ let isDirty = false;
 let originalContent = '';
 
 // Temp storage for unsaved changes
-const TEMP_STORAGE_PREFIX = 'fletcher_temp_';
+const TEMP_STORAGE_PREFIX = 'hotnote_temp_';
 
 // Get file path key for storage
 const getFilePathKey = () => {
@@ -126,9 +190,23 @@ const brandHighlightStyleDark = HighlightStyle.define([
 const getLanguageExtension = (filename) => {
     // Check for special filenames without extensions
     const basename = filename.split('/').pop().toLowerCase();
+
+    // Bazel files (use Python/Starlark syntax)
+    if (basename === 'build' || basename === 'build.bazel' || basename === 'workspace' || basename === 'workspace.bazel') {
+        return StreamLanguage.define(pythonMode);
+    }
+
+    // Jenkinsfile
     if (basename === 'jenkinsfile') {
         return StreamLanguage.define(groovyMode);
     }
+
+    // Nginx config
+    if (basename === 'nginx.conf' || basename.startsWith('nginx.')) {
+        return StreamLanguage.define(nginxMode);
+    }
+
+    // .gitignore and other ignore files
     if (basename === '.gitignore' || basename.endsWith('ignore')) {
         return StreamLanguage.define(shellMode);
     }
@@ -164,6 +242,8 @@ const getLanguageExtension = (filename) => {
         json: json(),
         md: markdown(),
         markdown: markdown(),
+        bzl: StreamLanguage.define(pythonMode),  // Bazel/Starlark files
+        conf: StreamLanguage.define(nginxMode),  // Nginx config files
     };
     return langMap[ext] || [];
 };
@@ -247,6 +327,9 @@ const initCodeMirrorEditor = async (initialContent = '', filename = 'untitled') 
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const highlightStyle = isDark ? brandHighlightStyleDark : brandHighlightStyle;
 
+    // Check if we have a file open
+    const hasFileOpen = currentFileHandle !== null;
+
     const extensions = [
         lineNumbers(),
         EditorView.lineWrapping,
@@ -281,6 +364,13 @@ const initCodeMirrorEditor = async (initialContent = '', filename = 'untitled') 
             }
         }),
     ];
+
+    // If no file is open, make editor read-only and show placeholder
+    if (!hasFileOpen) {
+        extensions.push(EditorState.readOnly.of(true));
+        extensions.push(placeholder('Open a file or create a new one to start editing (Cmd/Ctrl+Shift+O or Cmd/Ctrl+N)'));
+        extensions.push(EditorView.editable.of(false));
+    }
 
     const languageExtension = getLanguageExtension(filename);
     if (languageExtension) {
@@ -571,7 +661,7 @@ const goFolderUp = async () => {
 
 // Check if File System Access API is supported
 const isFileSystemAccessSupported = () => {
-    return 'showOpenFilePicker' in window && 'showDirectoryPicker' in window;
+    return FileSystemAdapter.isSupported();
 };
 
 // Open folder
@@ -587,9 +677,8 @@ const openFolder = async () => {
             saveTempChanges();
         }
 
-        const dirHandle = await window.showDirectoryPicker({
-            mode: 'readwrite',
-        });
+        const dirHandle = await FileSystemAdapter.openDirectory();
+        if (!dirHandle) return; // User cancelled
 
         currentDirHandle = dirHandle;
         currentPath = [{ name: dirHandle.name, handle: dirHandle }];
@@ -623,12 +712,9 @@ const showFilePicker = async (dirHandle) => {
     `;
 
     const fileList = document.getElementById('file-list');
-    const entries = [];
 
-    // Collect all entries
-    for await (const entry of dirHandle.values()) {
-        entries.push(entry);
-    }
+    // Collect all entries using the adapter
+    const entries = await FileSystemAdapter.listDirectory(dirHandle);
 
     // Sort: directories first, then files, alphabetically
     entries.sort((a, b) => {
@@ -709,18 +795,17 @@ const openFileFromPicker = async (fileHandle) => {
         }
 
         currentFileHandle = fileHandle;
-        const file = await fileHandle.getFile();
-        currentFilename = file.name;
+        currentFilename = fileHandle.name;
 
         // Set rich mode to true for markdown files by default
-        if (isMarkdownFile(file.name)) {
+        if (isMarkdownFile(fileHandle.name)) {
             isRichMode = true;
         } else {
             isRichMode = false;
         }
 
         // Always load the original file content from disk
-        const fileContent = await file.text();
+        const fileContent = await FileSystemAdapter.readFile(fileHandle);
 
         // Check for temp changes
         const pathKey = getFilePathKey();
@@ -739,7 +824,7 @@ const openFileFromPicker = async (fileHandle) => {
 
         // Initialize editor with the content (temp or file)
         // but originalContent will be set to fileContent in initEditor
-        await initEditor(fileContent, file.name);
+        await initEditor(fileContent, fileHandle.name);
 
         // If we loaded temp content, replace the editor content and mark as dirty
         if (tempContent !== null) {
@@ -785,26 +870,16 @@ const saveFile = async () => {
 
         // If no file handle exists, prompt for save location
         if (!currentFileHandle) {
-            currentFileHandle = await window.showSaveFilePicker({
-                types: [
-                    {
-                        description: 'Text Files',
-                        accept: {
-                            'text/*': ['.txt', '.js', '.jsx', '.ts', '.tsx', '.py', '.html', '.css', '.json', '.md'],
-                        },
-                    },
-                ],
-                suggestedName: currentFilename || 'untitled.txt',
-            });
+            currentFileHandle = await FileSystemAdapter.saveFilePicker(currentFilename || 'untitled.txt');
+
+            if (!currentFileHandle) return; // User cancelled
 
             currentFilename = currentFileHandle.name;
             updateBreadcrumb();
         }
 
         // Write to file
-        const writable = await currentFileHandle.createWritable();
-        await writable.write(content);
-        await writable.close();
+        await FileSystemAdapter.writeFile(currentFileHandle, content);
 
         isDirty = false;
 
@@ -878,7 +953,12 @@ const showFilenameInput = () => {
         input.placeholder = 'filename';
         input.value = '';
 
+        let resolved = false;
+
         const handleSubmit = () => {
+            if (resolved) return;
+            resolved = true;
+
             const filename = input.value.trim();
             // Validate filename
             if (!filename) {
@@ -888,6 +968,7 @@ const showFilenameInput = () => {
             // Check for invalid characters
             const invalidChars = /[\/\\:*?"<>|]/;
             if (invalidChars.test(filename)) {
+                alert('Invalid filename. Please avoid using / \\ : * ? " < > |');
                 resolve(null);
                 return;
             }
@@ -895,6 +976,8 @@ const showFilenameInput = () => {
         };
 
         const handleCancel = () => {
+            if (resolved) return;
+            resolved = true;
             resolve(null);
         };
 
@@ -917,6 +1000,11 @@ const showFilenameInput = () => {
 
 // New file
 const newFile = async () => {
+    if (!isFileSystemAccessSupported()) {
+        alert('File System Access API is not supported in this browser. Please use Chrome, Edge, or a recent version of Safari.');
+        return;
+    }
+
     // Store current state in case we need to restore
     const previousFileHandle = currentFileHandle;
     const previousFilename = currentFilename;
@@ -940,13 +1028,80 @@ const newFile = async () => {
         return;
     }
 
-    // Create new file with the provided filename
-    currentFileHandle = null;
-    currentFilename = filename;
-    await initEditor('', filename);
+    try {
+        let fileHandle;
 
-    // Keep current directory context
-    updateBreadcrumb();
+        // If we're in a directory context, create the file there
+        if (currentDirHandle) {
+            // Create file in current directory
+            fileHandle = await currentDirHandle.getFileHandle(filename, { create: true });
+        } else {
+            // No directory context, use save file picker
+            fileHandle = await FileSystemAdapter.saveFilePicker(filename);
+            if (!fileHandle) {
+                // User cancelled
+                currentFileHandle = previousFileHandle;
+                currentFilename = previousFilename;
+                isDirty = wasDirty;
+                updateBreadcrumb();
+                return;
+            }
+        }
+
+        // Write empty content to create/touch the file
+        await FileSystemAdapter.writeFile(fileHandle, '');
+
+        // Set as current file
+        currentFileHandle = fileHandle;
+        currentFilename = filename;
+
+        // Set rich mode for markdown files
+        if (isMarkdownFile(filename)) {
+            isRichMode = true;
+        } else {
+            isRichMode = false;
+        }
+
+        // Initialize editor with empty content
+        await initEditor('', filename);
+
+        // Mark as not dirty since we just created it empty
+        isDirty = false;
+        originalContent = '';
+
+        // Update breadcrumb
+        updateBreadcrumb();
+
+        // Enable autosave for the new file
+        if (!autosaveEnabled) {
+            autosaveEnabled = true;
+            document.getElementById('autosave-checkbox').checked = true;
+            startAutosave();
+        }
+
+        // Add to navigation history
+        addToHistory();
+
+        // Refresh file picker if in directory context
+        if (currentDirHandle) {
+            await showFilePicker(currentDirHandle);
+        }
+
+        // Focus the editor
+        if (editorView) {
+            editorView.focus();
+        }
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            console.error('Error creating new file:', err);
+            alert('Error creating new file: ' + err.message);
+        }
+        // Restore previous state on error
+        currentFileHandle = previousFileHandle;
+        currentFilename = previousFilename;
+        isDirty = wasDirty;
+        updateBreadcrumb();
+    }
 };
 
 // Dark mode toggle
@@ -1036,12 +1191,15 @@ const showWelcomePrompt = () => {
     });
 };
 
-// Initialize editor on load
-initEditor();
-updateBreadcrumb();
-updateNavigationButtons();
+// Initialize app
+(async () => {
+    // Initialize editor on load
+    await initEditor();
+    updateBreadcrumb();
+    updateNavigationButtons();
 
-// Show welcome prompt on first load
-setTimeout(() => {
-    showWelcomePrompt();
-}, 500);
+    // Show welcome prompt on first load
+    setTimeout(() => {
+        showWelcomePrompt();
+    }, 500);
+})();
