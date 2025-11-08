@@ -40,9 +40,25 @@ const domain = new digitalocean.Domain('hotnote-domain', {
   name: 'hotnote.io',
 });
 
+// Create CNAME record pointing to the app's default URL
+// The app.defaultIngress returns the full URL (https://hotnote-xxxxx.ondigitalocean.app)
+// We need to extract just the hostname
+const appDefaultHostname = app.defaultIngress.apply((url) => {
+  return url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+});
+
+const cnameRecord = new digitalocean.DnsRecord('hotnote-cname', {
+  domain: domain.name,
+  type: 'CNAME',
+  name: '@', // @ represents the root domain
+  value: appDefaultHostname.apply((hostname) => `${hostname}.`), // CNAME values must end with a dot
+  ttl: 3600,
+});
+
 // Export the app's live URL and domain info
 export const appUrl = app.liveUrl;
 export const appId = app.id;
+export const appDefaultUrl = app.defaultIngress;
 export const domainName = domain.name;
 export const nameservers = domain.urn.apply(() => [
   'ns1.digitalocean.com',
