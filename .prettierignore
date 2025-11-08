@@ -4,3 +4,4 @@ coverage
 *.min.js
 *.min.css
 package-lock.json
+CHANGELOG.md
