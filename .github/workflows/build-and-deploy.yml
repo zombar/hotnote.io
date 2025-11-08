@@ -57,6 +57,9 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://hotnote.io
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -75,8 +78,9 @@ jobs:
         with:
           work-dir: ./infrastructure
           command: up
-          stack-name: production
+          stack-name: hotnote
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.version }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
