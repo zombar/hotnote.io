@@ -112,7 +112,13 @@ header {
   gap: 1rem;
   padding: 0.75rem 1.5rem;
   border-bottom: 2px solid transparent;
-  border-image: linear-gradient(90deg, var(--brand-pink) 0%, var(--brand-purple) 50%, var(--brand-cyan) 100%) 1;
+  border-image: linear-gradient(
+      90deg,
+      var(--brand-pink) 0%,
+      var(--brand-purple) 50%,
+      var(--brand-cyan) 100%
+    )
+    1;
   background: var(--bg-secondary);
   box-shadow: 0 2px 8px rgb(0 0 0 / 5%);
   overflow: visible;
