@@ -118,15 +118,16 @@ header.searching::after {
     font-size: 1.5rem;
     font-weight: 900;
     letter-spacing: 0.08em;
-    color: var(--brand-cyan);
+    color: var(--brand-pink);
     flex-shrink: 0;
     text-shadow:
-        0 0 10px rgba(233, 30, 140, 0.4),
-        0 0 20px rgba(233, 30, 140, 0.3),
-        0 0 30px rgba(233, 30, 140, 0.2);
+        0 0 10px rgba(0, 212, 255, 0.4),
+        0 0 20px rgba(0, 212, 255, 0.3),
+        0 0 30px rgba(0, 212, 255, 0.2);
 }
 
 [data-theme="dark"] .app-logo {
+    color: var(--brand-cyan);
     text-shadow:
         0 0 15px rgba(255, 45, 150, 0.5),
         0 0 25px rgba(255, 45, 150, 0.4),
@@ -139,77 +140,88 @@ header.searching::after {
 }
 
 /* Stagger the disappearing animation for each letter (H and N stay, rest disappear) */
-/* Opacity fades first, then width collapses after opacity is done */
+/* Each letter fades out then collapses in sequence */
+@keyframes letterDisappear {
+    0% {
+        opacity: 1;
+        width: auto;
+        margin: 0;
+    }
+    40% {
+        opacity: 0;
+        width: auto;
+        margin: 0;
+    }
+    100% {
+        opacity: 0;
+        width: 0;
+        margin: 0;
+    }
+}
+
 .app-logo.compact span:nth-child(2) {
-    opacity: 0;
-    width: 0;
-    margin: 0;
-    transition: opacity 0.8s ease 0s,
-                width 0.3s ease 0.8s,
-                margin 0.3s ease 0.8s;
+    animation: letterDisappear 0.5s ease 0s forwards;
 }
 
 .app-logo.compact span:nth-child(3) {
-    opacity: 0;
-    width: 0;
-    margin: 0;
-    transition: opacity 0.8s ease 0.3s,
-                width 0.3s ease 1.1s,
-                margin 0.3s ease 1.1s;
+    animation: letterDisappear 0.5s ease 0.4s forwards;
 }
 
 .app-logo.compact span:nth-child(5) {
-    opacity: 0;
-    width: 0;
-    margin: 0;
-    transition: opacity 0.8s ease 0.6s,
-                width 0.3s ease 1.4s,
-                margin 0.3s ease 1.4s;
+    animation: letterDisappear 0.5s ease 0.8s forwards;
 }
 
 .app-logo.compact span:nth-child(6) {
-    opacity: 0;
-    width: 0;
-    margin: 0;
-    transition: opacity 0.8s ease 0.9s,
-                width 0.3s ease 1.7s,
-                margin 0.3s ease 1.7s;
+    animation: letterDisappear 0.5s ease 1.2s forwards;
 }
 
 .app-logo.compact span:nth-child(7) {
-    opacity: 0;
-    width: 0;
-    margin: 0;
-    transition: opacity 0.8s ease 1.2s,
-                width 0.3s ease 2.0s,
-                margin 0.3s ease 2.0s;
+    animation: letterDisappear 0.5s ease 1.6s forwards;
 }
 
 .app-logo.compact span:nth-child(8) {
-    opacity: 0;
-    width: 0;
-    margin: 0;
-    transition: opacity 0.8s ease 1.5s,
-                width 0.3s ease 2.3s,
-                margin 0.3s ease 2.3s;
+    animation: letterDisappear 0.5s ease 2.0s forwards;
 }
 
 .app-logo.compact span:nth-child(9) {
-    opacity: 0;
-    width: 0;
-    margin: 0;
-    transition: opacity 0.8s ease 1.8s,
-                width 0.3s ease 2.6s,
-                margin 0.3s ease 2.6s;
+    animation: letterDisappear 0.5s ease 2.4s forwards;
 }
 
 .app-logo.compact span:nth-child(10) {
-    opacity: 0;
-    width: 0;
-    margin: 0;
-    transition: opacity 0.8s ease 2.1s,
-                width 0.3s ease 2.9s,
-                margin 0.3s ease 2.9s;
+    animation: letterDisappear 0.5s ease 2.8s forwards;
+}
+
+/* Accordion animation for navbar elements */
+@keyframes accordionSpread {
+    0% {
+        transform: scale(0.95);
+        opacity: 0.7;
+    }
+    50% {
+        transform: scale(1.02);
+        opacity: 0.85;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Stagger the accordion animations for each navbar section */
+.app-logo.compact ~ .nav-controls {
+    animation: accordionSpread 0.5s ease 0.6s forwards;
+}
+
+.app-logo.compact ~ .nav-controls ~ #new-btn {
+    animation: accordionSpread 0.5s ease 1.0s forwards;
+}
+
+.app-logo.compact ~ .nav-controls ~ #new-btn ~ .breadcrumb {
+    animation: accordionSpread 0.5s ease 1.8s forwards;
+}
+
+.app-logo.compact ~ .nav-controls ~ #new-btn ~ .breadcrumb ~ .actions {
+    animation: accordionSpread 0.5s ease 2.6s forwards;
 }
 
 .nav-controls {
@@ -342,8 +354,8 @@ header.searching::after {
     max-height: 200px;
     overflow-y: auto;
     z-index: 10000;
-    min-width: 250px;
-    max-width: 400px;
+    min-width: 500px;
+    max-width: 800px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
@@ -847,7 +859,7 @@ button:disabled:hover {
 
 @media (min-width: 1400px) {
     .milkdown > * {
-        max-width: 40%;
+        max-width: 50%;
     }
 }
 

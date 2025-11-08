@@ -245,6 +245,9 @@ const getLanguageExtension = (filename) => {
         markdown: markdown(),
         bzl: StreamLanguage.define(pythonMode),  // Bazel/Starlark files
         conf: StreamLanguage.define(nginxMode),  // Nginx config files
+        tf: javascript(),  // Terraform files (HCL syntax similar to JavaScript)
+        tfvars: javascript(),  // Terraform variable files
+        hcl: javascript(),  // HashiCorp Configuration Language
     };
     return langMap[ext] || [];
 };
@@ -389,10 +392,10 @@ const initCodeMirrorEditor = async (initialContent = '', filename = 'untitled') 
     });
 };
 
-// Update logo state based on whether a file is open
+// Update logo state based on whether a folder or file is open
 const updateLogoState = () => {
     const logo = document.querySelector('.app-logo');
-    if (logo && currentFileHandle) {
+    if (logo && (currentFileHandle || currentDirHandle)) {
         logo.classList.add('compact');
     }
 };
@@ -744,6 +747,7 @@ const openFolder = async () => {
         addToHistory();
         await showFilePicker(dirHandle);
         updateBreadcrumb();
+        updateLogoState();
     } catch (err) {
         if (err.name !== 'AbortError') {
             console.error('Error opening folder:', err);
