@@ -4,3 +4,4 @@ dist/
 *.log
 .vite/
 coverage/
+.session_properties.HN
