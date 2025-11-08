@@ -1,0 +1,13 @@
+{
+  "entry": ["index.html", "sw.js", "vite.config.js", "vitest.config.js"],
+  "extensions": [".js"],
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/*.test.js",
+    "**/*.spec.js",
+    "**/tests/**"
+  ],
+  "ignoreUnresolved": ["neutralino.js"]
+}

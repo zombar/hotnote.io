@@ -14,14 +14,14 @@ export class MockCache {
     // Simulate fetch
     const response = new Response('mock content', {
       status: 200,
-      headers: { 'Content-Type': 'text/plain' }
+      headers: { 'Content-Type': 'text/plain' },
     });
     this._storage.set(url, response.clone());
     return undefined;
   }
 
   async addAll(requests) {
-    const promises = requests.map(request => this.add(request));
+    const promises = requests.map((request) => this.add(request));
     await Promise.all(promises);
   }
 
@@ -52,7 +52,7 @@ export class MockCache {
 
   async matchAll(request, options = {}) {
     if (!request) {
-      return Array.from(this._storage.values()).map(r => r.clone());
+      return Array.from(this._storage.values()).map((r) => r.clone());
     }
 
     const url = typeof request === 'string' ? request : request.url;
@@ -69,14 +69,14 @@ export class MockCache {
     return matches;
   }
 
-  async delete(request, options = {}) {
+  async delete(request, _options = {}) {
     const url = typeof request === 'string' ? request : request.url;
     return this._storage.delete(url);
   }
 
   async keys(request, options = {}) {
     if (!request) {
-      return Array.from(this._storage.keys()).map(url => new Request(url));
+      return Array.from(this._storage.keys()).map((url) => new Request(url));
     }
 
     const url = typeof request === 'string' ? request : request.url;
@@ -156,11 +156,11 @@ export class MockCacheStorage {
 }
 
 export class MockServiceWorker {
-  constructor(scriptURL, options = {}) {
+  constructor(scriptURL, _options = {}) {
     this.scriptURL = scriptURL;
     this.state = 'installing';
     this._eventListeners = new Map();
-    this._scope = options.scope || '/';
+    this._scope = _options.scope || '/';
   }
 
   addEventListener(type, listener) {
@@ -190,7 +190,7 @@ export class MockServiceWorker {
     const type = event.type;
     if (this._eventListeners.has(type)) {
       const listeners = this._eventListeners.get(type);
-      listeners.forEach(listener => listener(event));
+      listeners.forEach((listener) => listener(event));
     }
   }
 
@@ -274,7 +274,7 @@ export class MockServiceWorkerRegistration {
     const type = event.type;
     if (this._eventListeners.has(type)) {
       const listeners = this._eventListeners.get(type);
-      listeners.forEach(listener => listener(event));
+      listeners.forEach((listener) => listener(event));
     }
   }
 }
@@ -320,7 +320,7 @@ export class MockServiceWorkerContainer {
     // Poll until ready
     return new Promise((resolve) => {
       const checkReady = () => {
-        this.getRegistration().then(reg => {
+        this.getRegistration().then((reg) => {
           if (reg && reg.active) {
             resolve(reg);
           } else {
@@ -353,7 +353,7 @@ export class MockServiceWorkerContainer {
     const type = event.type;
     if (this._eventListeners.has(type)) {
       const listeners = this._eventListeners.get(type);
-      listeners.forEach(listener => listener(event));
+      listeners.forEach((listener) => listener(event));
     }
   }
 
@@ -397,7 +397,7 @@ export function setupServiceWorkerMocks(global) {
 
   return {
     cacheStorage,
-    serviceWorkerContainer
+    serviceWorkerContainer,
   };
 }
 
@@ -431,7 +431,7 @@ export async function simulateServiceWorkerFetch(url, cacheStorage) {
   // Simulate network fetch
   const networkResponse = new Response('network content', {
     status: 200,
-    headers: { 'Content-Type': 'text/html' }
+    headers: { 'Content-Type': 'text/html' },
   });
   fetchEvent.respondWith(networkResponse);
 

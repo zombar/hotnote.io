@@ -1,10 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { cacheStorage, serviceWorkerContainer } from './setup.js';
-import {
-  MockFetchEvent,
-  simulateServiceWorkerInstall,
-  simulateServiceWorkerFetch,
-} from './mocks/serviceworker.js';
+import { MockFetchEvent, simulateServiceWorkerFetch } from './mocks/serviceworker.js';
 
 describe('Service Worker Registration Tests', () => {
   beforeEach(() => {

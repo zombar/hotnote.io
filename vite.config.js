@@ -8,13 +8,15 @@ export default defineConfig({
       external: ['/neutralino.js'],
       output: {
         // Copy service worker after build
-        plugins: [{
-          name: 'copy-sw',
-          writeBundle() {
-            copyFileSync('sw.js', 'dist/sw.js');
-          }
-        }]
-      }
-    }
-  }
+        plugins: [
+          {
+            name: 'copy-sw',
+            writeBundle() {
+              copyFileSync('sw.js', 'dist/sw.js');
+            },
+          },
+        ],
+      },
+    },
+  },
 });

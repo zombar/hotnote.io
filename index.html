@@ -1,60 +1,70 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="A lightweight, minimalistic code editor and note-taking app">
-    <meta name="theme-color" content="#e91e8c">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A lightweight, minimalistic code editor and note-taking app"
+    />
+    <meta name="theme-color" content="#e91e8c" />
     <title>hotnote</title>
-    <link rel="icon" type="image/png" href="/favicon.png">
-    <link rel="apple-touch-icon" href="/icon-192.png">
-    <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/style.css">
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="stylesheet" href="/style.css" />
     <script>
-        // Apply saved theme before page renders to prevent flash
-        const savedTheme = localStorage.getItem('theme');
-        if (savedTheme === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'dark');
-            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ff2d96');
-        }
+      // Apply saved theme before page renders to prevent flash
+      const savedTheme = localStorage.getItem('theme');
+      if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ff2d96');
+      }
     </script>
-</head>
-<body class="preload">
+  </head>
+  <body class="preload">
     <div id="app">
-        <header>
-            <div class="app-logo">
-                <span>H</span>
-                <span>O</span>
-                <span>T</span>
-                <span>N</span>
-                <span>O</span>
-                <span>T</span>
-                <span>E</span>
-                <span>.</span>
-                <span>I</span>
-                <span>O</span>
-            </div>
-            <div class="nav-controls">
-                <button id="back-btn" title="Go back" disabled>←</button>
-                <button id="forward-btn" title="Go forward" disabled>→</button>
-                <button id="folder-up-btn" title="Go up one folder" disabled>↑</button>
-            </div>
-            <button id="new-btn" title="New file (Ctrl/Cmd+N)">□</button>
-            <nav class="breadcrumb" id="breadcrumb">
-                <span class="breadcrumb-item">untitled</span>
-            </nav>
-            <div class="actions">
-                <label class="autosave-toggle">
-                    <input type="checkbox" id="autosave-checkbox" checked>
-                    <span id="autosave-label">autosave</span>
-                </label>
-                <button id="dark-mode-toggle" title="Switch to dark mode">○</button>
-                <button id="rich-toggle-btn" class="hidden" title="Toggle rich markdown editor">rich</button>
-            </div>
-        </header>
-        <div id="file-picker" class="file-picker hidden"></div>
-        <div id="editor"></div>
+      <header>
+        <div class="app-logo">
+          <span>H</span>
+          <span>O</span>
+          <span>T</span>
+          <span>N</span>
+          <span>O</span>
+          <span>T</span>
+          <span>E</span>
+          <span>.</span>
+          <span>I</span>
+          <span>O</span>
+        </div>
+        <div class="nav-controls">
+          <button type="button" id="back-btn" title="Go back" disabled>←</button>
+          <button type="button" id="forward-btn" title="Go forward" disabled>→</button>
+          <button type="button" id="folder-up-btn" title="Go up one folder" disabled>↑</button>
+        </div>
+        <button type="button" id="new-btn" title="New file (Ctrl/Cmd+N)">□</button>
+        <nav class="breadcrumb" id="breadcrumb">
+          <span class="breadcrumb-item">untitled</span>
+        </nav>
+        <div class="actions">
+          <label class="autosave-toggle">
+            <input type="checkbox" id="autosave-checkbox" checked />
+            <span id="autosave-label">autosave</span>
+          </label>
+          <button type="button" id="dark-mode-toggle" title="Switch to dark mode">○</button>
+          <button
+            type="button"
+            id="rich-toggle-btn"
+            class="hidden"
+            title="Toggle rich markdown editor"
+          >
+            rich
+          </button>
+        </div>
+      </header>
+      <div id="file-picker" class="file-picker hidden"></div>
+      <div id="editor"></div>
     </div>
     <script type="module" src="/app.js"></script>
-</body>
+  </body>
 </html>

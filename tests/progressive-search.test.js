@@ -35,7 +35,7 @@ describe('Progressive Search Tests', () => {
       for (const file of allFiles) {
         if (file.name.toLowerCase().includes(query.toLowerCase())) {
           // Simulate progressive yielding
-          await new Promise(resolve => setTimeout(resolve, 1));
+          await new Promise((resolve) => setTimeout(resolve, 1));
           yield {
             name: file.name,
             path: file.path,
@@ -43,7 +43,7 @@ describe('Progressive Search Tests', () => {
             kind: 'file',
             handle: file.handle,
             depth: file.depth || 0,
-            relevance: 100
+            relevance: 100,
           };
         }
       }
@@ -82,7 +82,7 @@ describe('Progressive Search Tests', () => {
             path: file.path,
             fullPath: file.path ? `${file.path}/${file.name}` : file.name,
             kind: 'file',
-            relevance: 100
+            relevance: 100,
           };
           count++;
         }
@@ -91,8 +91,8 @@ describe('Progressive Search Tests', () => {
 
     // Test early break - only consume first 2 results
     const firstTwo = [];
-    for await (const result of mockProgressiveSearch(mockProject, 'app')) {
-      firstTwo.push(result);
+    for await (const _result of mockProgressiveSearch(mockProject, 'app')) {
+      firstTwo.push(_result);
       if (firstTwo.length === 2) break;
     }
 
@@ -111,7 +111,7 @@ describe('Progressive Search Tests', () => {
         if (file.name.toLowerCase().includes(query.toLowerCase())) {
           yield {
             name: file.name,
-            relevance: 100
+            relevance: 100,
           };
           count++;
         }
@@ -119,8 +119,8 @@ describe('Progressive Search Tests', () => {
     }
 
     const results = [];
-    for await (const result of mockProgressiveSearch(mockProject, 'app', 3)) {
-      results.push(result);
+    for await (const _result of mockProgressiveSearch(mockProject, 'app', 3)) {
+      results.push(_result);
     }
 
     expect(results.length).toBeLessThanOrEqual(3);
@@ -145,7 +145,13 @@ describe('Progressive Search Tests', () => {
   });
 
   it('should support depth-first traversal for progressive results', async () => {
-    async function* mockDepthFirstSearch(dirHandle, query, currentPath = '', depth = 0, maxDepth = 10) {
+    async function* mockDepthFirstSearch(
+      dirHandle,
+      query,
+      currentPath = '',
+      depth = 0,
+      maxDepth = 10
+    ) {
       if (depth > maxDepth) return;
 
       const entries = dirHandle._entries || new Map();
@@ -156,7 +162,7 @@ describe('Progressive Search Tests', () => {
           yield {
             name,
             path: currentPath,
-            depth: depth
+            depth: depth,
           };
         }
       }
@@ -177,7 +183,7 @@ describe('Progressive Search Tests', () => {
 
     // Should find multiple files at different depths
     expect(results.length).toBeGreaterThan(0);
-    const depths = results.map(r => r.depth);
+    const depths = results.map((r) => r.depth);
     const maxDepth = Math.max(...depths);
     const minDepth = Math.min(...depths);
 
@@ -190,7 +196,7 @@ describe('Progressive Search Tests', () => {
       const allFiles = dirHandle._getAllFiles();
       for (const file of allFiles) {
         if (file.name.toLowerCase().includes(query.toLowerCase())) {
-          await new Promise(resolve => setTimeout(resolve, 1));
+          await new Promise((resolve) => setTimeout(resolve, 1));
           yield { name: file.name };
         }
       }
@@ -236,7 +242,7 @@ describe('Progressive Search Tests', () => {
     }
 
     // Early termination
-    for await (const result of mockSearchWithCleanup(mockProject, 'app')) {
+    for await (const _result of mockSearchWithCleanup(mockProject, 'app')) {
       break; // Terminate after first result
     }
 
@@ -284,12 +290,16 @@ describe('Progressive Search Tests', () => {
       // Collect and score matches
       for (const file of allFiles) {
         if (file.name.toLowerCase().includes(query.toLowerCase())) {
-          const relevance = file.name.toLowerCase() === query.toLowerCase() ? 1000 :
-                          file.name.toLowerCase().startsWith(query.toLowerCase()) ? 500 : 100;
+          const relevance =
+            file.name.toLowerCase() === query.toLowerCase()
+              ? 1000
+              : file.name.toLowerCase().startsWith(query.toLowerCase())
+                ? 500
+                : 100;
           matches.push({
             name: file.name,
             path: file.path,
-            relevance
+            relevance,
           });
         }
       }

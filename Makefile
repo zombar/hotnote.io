@@ -1,4 +1,4 @@
-.PHONY: help dev prod build up down logs clean restart test
+.PHONY: help dev prod build up down logs clean restart test lint format lint-html lint-css check-unused check-size validate
 
 # Default target
 .DEFAULT_GOAL := help
@@ -25,23 +25,52 @@ down: ## Stop all services
 	@docker compose down
 
 logs: ## Show logs (dev or prod, e.g., make logs-dev)
-	@docker compose --profile dev logs -f
+	@docker compose logs -f
 
 clean: ## Remove all containers, volumes, and images
 	@echo "$(CYAN)Cleaning up Docker resources$(RESET)"
-	@docker compose --profile dev --profile prod down -v
+	@docker compose down -v
 	@docker system prune -f
 
 restart: ## Restart development server
 	@echo "$(CYAN)Restarting development server$(RESET)"
-	@docker compose --profile dev restart
+	@docker compose restart
 
-test: ## Run tests
+test: ## Run tests and all validation checks
 	@echo "$(CYAN)Running tests$(RESET)"
-	@docker compose --profile dev run --rm dev npm test
+	@npm test -- --run
+	@echo "$(CYAN)Running validation checks$(RESET)"
+	@$(MAKE) validate
+
+lint: ## Run ESLint
+	@echo "$(CYAN)Running ESLint$(RESET)"
+	@npm run lint
+
+format: ## Check code formatting with Prettier
+	@echo "$(CYAN)Checking code formatting$(RESET)"
+	@npm run format:check
+
+lint-html: ## Validate HTML files
+	@echo "$(CYAN)Validating HTML$(RESET)"
+	@npm run lint:html
+
+lint-css: ## Lint CSS files
+	@echo "$(CYAN)Linting CSS$(RESET)"
+	@npm run lint:css
+
+check-unused: ## Check for unused exports
+	@echo "$(CYAN)Checking for unused exports$(RESET)"
+	@npm run check:unused
+
+check-size: ## Check bundle size
+	@echo "$(CYAN)Checking bundle size$(RESET)"
+	@npm run check:size
+
+validate: lint format lint-html lint-css ## Run all validation checks
+	@echo "$(CYAN)✓ All validation checks passed!$(RESET)"
 
 shell: ## Open shell in development container
-	@docker compose --profile dev run --rm dev sh
+	@docker compose run --rm sh
 
 install: ## Install dependencies locally
 	@echo "$(CYAN)Installing dependencies$(RESET)"

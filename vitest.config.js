@@ -8,12 +8,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
-      exclude: [
-        'node_modules/',
-        'tests/',
-        '*.config.js',
-        'sw.js',
-      ],
+      exclude: ['node_modules/', 'tests/', '*.config.js', 'sw.js'],
       // Coverage thresholds for core files
       thresholds: {
         lines: 70,

@@ -64,11 +64,11 @@ export class MockFileSystemFileHandle {
     return new MockFileSystemWritableFileStream(this);
   }
 
-  async queryPermission(options = {}) {
+  async queryPermission(_options = {}) {
     return this._permissionState;
   }
 
-  async requestPermission(options = {}) {
+  async requestPermission(_options = {}) {
     return this._permissionState;
   }
 
@@ -113,7 +113,7 @@ export class MockFileSystemDirectoryHandle {
         if (options.create) {
           const newDir = new MockFileSystemDirectoryHandle(dirName, {
             parent: this,
-            permissionState: this._permissionState
+            permissionState: this._permissionState,
           });
           this._entries.set(dirName, newDir);
           return await newDir.getFileHandle(rest.join('/'), options);
@@ -135,7 +135,7 @@ export class MockFileSystemDirectoryHandle {
     if (options.create) {
       const fileHandle = new MockFileSystemFileHandle(name, '', {
         parent: this,
-        permissionState: this._permissionState
+        permissionState: this._permissionState,
       });
       this._entries.set(name, fileHandle);
       return fileHandle;
@@ -158,7 +158,7 @@ export class MockFileSystemDirectoryHandle {
         if (options.create) {
           const newDir = new MockFileSystemDirectoryHandle(dirName, {
             parent: this,
-            permissionState: this._permissionState
+            permissionState: this._permissionState,
           });
           this._entries.set(dirName, newDir);
           return await newDir.getDirectoryHandle(rest.join('/'), options);
@@ -180,7 +180,7 @@ export class MockFileSystemDirectoryHandle {
     if (options.create) {
       const dirHandle = new MockFileSystemDirectoryHandle(name, {
         parent: this,
-        permissionState: this._permissionState
+        permissionState: this._permissionState,
       });
       this._entries.set(name, dirHandle);
       return dirHandle;
@@ -226,11 +226,11 @@ export class MockFileSystemDirectoryHandle {
     return null;
   }
 
-  async queryPermission(options = {}) {
+  async queryPermission(_options = {}) {
     return this._permissionState;
   }
 
-  async requestPermission(options = {}) {
+  async requestPermission(_options = {}) {
     return this._permissionState;
   }
 
@@ -324,14 +324,14 @@ export function createMockDirectoryHandle(name, structure = {}, options = {}) {
       // It's a file with content
       const file = new MockFileSystemFileHandle(entryName, entryValue, {
         parent: dir,
-        permissionState: options.permissionState || 'granted'
+        permissionState: options.permissionState || 'granted',
       });
       dir._addEntry(entryName, file);
     } else if (entryValue && typeof entryValue === 'object') {
       // It's a nested directory
       const subDir = createMockDirectoryHandle(entryName, entryValue, {
         parent: dir,
-        permissionState: options.permissionState || 'granted'
+        permissionState: options.permissionState || 'granted',
       });
       dir._addEntry(entryName, subDir);
     }

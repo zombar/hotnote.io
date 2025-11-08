@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import {
-  createMockCodeMirrorEditor,
-  mockAutosaveTimer,
-} from './setup.js';
+import { createMockCodeMirrorEditor, mockAutosaveTimer } from './setup.js';
 import { createMockProject } from './mocks/filesystem.js';
 
 const createMockAppState = () => {
@@ -119,8 +116,8 @@ describe('Autosave Integration Tests', () => {
   });
 
   it('should handle autosave with multiple dirty files', async () => {
-    const file1 = await appState.currentDirHandle.getFileHandle('file1.txt');
-    const file2 = await appState.currentDirHandle.getFileHandle('file2.txt');
+    await appState.currentDirHandle.getFileHandle('file1.txt');
+    await appState.currentDirHandle.getFileHandle('file2.txt');
 
     const editor1 = createMockCodeMirrorEditor();
     editor1.setContent('Modified file 1');
@@ -197,7 +194,7 @@ describe('Autosave Integration Tests', () => {
   });
 
   it('should preserve autosave state when switching files', async () => {
-    const file1 = await appState.currentDirHandle.getFileHandle('file1.txt');
+    await appState.currentDirHandle.getFileHandle('file1.txt');
     const file2 = await appState.currentDirHandle.getFileHandle('file2.txt');
 
     // Edit file1 and start autosave
@@ -324,8 +321,8 @@ describe('Autosave Integration Tests', () => {
   });
 
   it('should handle autosave with concurrent file operations', async () => {
-    const file1 = await appState.currentDirHandle.getFileHandle('file1.txt');
-    const file2 = await appState.currentDirHandle.getFileHandle('file2.txt');
+    await appState.currentDirHandle.getFileHandle('file1.txt');
+    await appState.currentDirHandle.getFileHandle('file2.txt');
 
     const editor1 = createMockCodeMirrorEditor();
     editor1.setContent('Content 1');

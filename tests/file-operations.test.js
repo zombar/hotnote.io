@@ -1,13 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createEnhancedFileHandle,
   createEnhancedDirectoryHandle,
   createMockCodeMirrorEditor,
   mockNavigationHistory,
-  mockAutosaveTimer,
 } from './setup.js';
 import { createMockProject } from './mocks/filesystem.js';
-import * as FileSystemAdapter from '../core.js';
 
 // Mock the DOM elements and app state needed for file operations
 const createMockAppState = () => {
@@ -47,12 +45,12 @@ const createMockDOM = () => {
 
 describe('File Creation Integration Tests', () => {
   let appState;
-  let mockDOM;
+  let _mockDOM;
   let mockProject;
 
   beforeEach(() => {
     appState = createMockAppState();
-    mockDOM = createMockDOM();
+    _mockDOM = createMockDOM();
     mockProject = createMockProject({
       'README.md': '# Test Project',
       src: {
@@ -94,7 +92,7 @@ describe('File Creation Integration Tests', () => {
   });
 
   it('should create file with nested path (src/utils/helper.js)', async () => {
-    const filePath = 'src/utils/helper.js';
+    const _filePath = 'src/utils/helper.js';
 
     // Navigate to src directory
     const srcDir = await appState.currentDirHandle.getDirectoryHandle('src');
@@ -163,7 +161,7 @@ describe('File Creation Integration Tests', () => {
     localStorage.setItem(tempKey, tempContent);
 
     // Create new file
-    const newFileHandle = await appState.currentDirHandle.getFileHandle('newfile.txt', {
+    const _newFileHandle = await appState.currentDirHandle.getFileHandle('newfile.txt', {
       create: true,
     });
 
@@ -267,9 +265,7 @@ describe('File Creation Integration Tests', () => {
     const filePromises = [];
 
     for (let i = 0; i < 10; i++) {
-      filePromises.push(
-        appState.currentDirHandle.getFileHandle(`file${i}.txt`, { create: true })
-      );
+      filePromises.push(appState.currentDirHandle.getFileHandle(`file${i}.txt`, { create: true }));
     }
 
     const fileHandles = await Promise.all(filePromises);
@@ -378,7 +374,7 @@ describe('File Opening Integration Tests', () => {
 
   it('should switch between files preserving unsaved changes', async () => {
     // Open first file
-    const file1Handle = await appState.currentDirHandle.getFileHandle('README.md');
+    const _file1Handle = await appState.currentDirHandle.getFileHandle('README.md');
     const file1Key = 'README.md';
 
     // Edit first file
@@ -388,7 +384,7 @@ describe('File Opening Integration Tests', () => {
 
     // Open second file
     const file2Handle = await appState.currentDirHandle.getFileHandle('data.json');
-    const file2Key = 'data.json';
+    const _file2Key = 'data.json';
 
     const mockEditor2 = createMockCodeMirrorEditor();
     const file2Content = await (await file2Handle.getFile()).text();
@@ -437,7 +433,7 @@ describe('File Opening Integration Tests', () => {
 
   it('should update breadcrumb with file path', async () => {
     const srcDir = await appState.currentDirHandle.getDirectoryHandle('src');
-    const fileHandle = await srcDir.getFileHandle('index.js');
+    const _fileHandle = await srcDir.getFileHandle('index.js');
 
     const path = ['src', 'index.js'];
     appState.currentPath = path;
@@ -469,7 +465,7 @@ describe('File Opening Integration Tests', () => {
 
   it('should preserve editor state when switching files', async () => {
     // Open file 1
-    const file1 = await appState.currentDirHandle.getFileHandle('README.md');
+    const _file1 = await appState.currentDirHandle.getFileHandle('README.md');
     const editor1 = createMockCodeMirrorEditor();
     editor1.setContent('Content 1');
 
@@ -479,7 +475,7 @@ describe('File Opening Integration Tests', () => {
     };
 
     // Open file 2
-    const file2 = await appState.currentDirHandle.getFileHandle('data.json');
+    const _file2 = await appState.currentDirHandle.getFileHandle('data.json');
     const editor2 = createMockCodeMirrorEditor();
     editor2.setContent('Content 2');
 
@@ -797,7 +793,7 @@ describe('File Search Integration Tests', () => {
   });
 
   it('should handle search cancellation', () => {
-    let cancelled = false;
+    const _cancelled = false;
     const cancelToken = { cancelled: false };
 
     const searchWithCancel = (dirHandle, query, cancelToken) => {

@@ -54,6 +54,7 @@ A lightweight, minimalistic code editor and note-taking app with local filesyste
 ## Browser Support
 
 The File System Access API is supported in:
+
 - Chrome/Edge (full support)
 - Safari 15.2+ (partial support)
 - Firefox (behind flag, experimental)
@@ -67,6 +68,7 @@ For the best experience, use Chrome or Edge.
 Deploy hotnote to any static hosting service:
 
 1. Build the application:
+
    ```bash
    npm install
    npm run build
@@ -89,11 +91,13 @@ Deploy hotnote to any static hosting service:
 ## Development
 
 1. Install dependencies:
+
    ```bash
    npm install
    ```
 
 2. Start the development server:
+
    ```bash
    npm run dev
    ```
@@ -101,6 +105,7 @@ Deploy hotnote to any static hosting service:
 3. Open your browser to the URL shown (typically `http://localhost:5173`)
 
 4. Build for production:
+
    ```bash
    npm run build
    ```
@@ -129,6 +134,7 @@ npm run test:coverage
 ```
 
 **Test Coverage:**
+
 - ✅ 100% coverage of core functionality
 - ✅ Temp storage operations
 - ✅ Language detection
@@ -144,11 +150,13 @@ See [tests/README.md](tests/README.md) for detailed testing documentation.
 ### First Launch
 
 On first load, hotnote will show a welcome prompt:
+
 - Click **Open Folder** to browse and navigate through a folder structure
 
 ### Opening Folders
 
 Press `Ctrl/Cmd + Shift + O` or click "Open Folder" from the welcome prompt to open a folder. This enables:
+
 - **Breadcrumb navigation** - Click any folder in the path to navigate to it
 - **File picker** - Browse files and subdirectories in an inline list
 - **Folder up button (↑)** - Navigate to the parent directory, or open a new folder when at root
@@ -157,6 +165,7 @@ Press `Ctrl/Cmd + Shift + O` or click "Open Folder" from the welcome prompt to o
 ### Navigating Files
 
 When browsing a folder:
+
 - Click on a **folder name** (📁) to navigate into it
 - Click on a **file name** (📄) to open and edit it
 - Click breadcrumb segments (including folders) to navigate back and close the current file
@@ -167,6 +176,7 @@ When browsing a folder:
 ### Unsaved Changes
 
 hotnote intelligently manages unsaved changes:
+
 - Files with unsaved changes show a **dot indicator (•)** next to their name
 - The dot appears in both the breadcrumb and the file list
 - When you navigate away from a file with unsaved changes, they're stored in browser storage
@@ -191,6 +201,7 @@ Click the "new" button or press `Ctrl/Cmd + N` to create a new file:
 3. Press **Enter** to create the file
 
 The file is immediately:
+
 - **Created on disk** (in the current directory if browsing, or you'll choose a location)
 - **Opened in the editor** ready for editing
 - **Autosave enabled** automatically for the new file
@@ -205,7 +216,7 @@ When you open a `.md` file, hotnote automatically enables the rich WYSIWYG edito
 - **WYSIWYG Experience**: Type naturally and see formatted text in real-time
   - Type `# ` for H1, `## ` for H2, etc.
   - Type `**bold**` to create **bold** text
-  - Type `*italic*` to create *italic* text
+  - Type `*italic*` to create _italic_ text
   - Type `- ` or `1. ` to start lists
   - Type `> ` for blockquotes
   - Type ``` for code blocks
@@ -276,24 +287,24 @@ Edit `style.css` to customize the colors. Key CSS variables are defined in `:roo
 
 ```css
 :root {
-    /* Pale minimalistic theme */
-    --bg-primary: #fafafa;
-    --bg-secondary: #f5f5f5;
-    --bg-tertiary: #eeeeee;
-    --text-primary: #333333;
-    --text-secondary: #888888;
-    --border: #e0e0e0;
-    --accent: #d0d0d0;
+  /* Pale minimalistic theme */
+  --bg-primary: #fafafa;
+  --bg-secondary: #f5f5f5;
+  --bg-tertiary: #eeeeee;
+  --text-primary: #333333;
+  --text-secondary: #888888;
+  --border: #e0e0e0;
+  --accent: #d0d0d0;
 
-    /* Washed out colors */
-    --red: #cc9999;
-    --green: #99cc99;
-    --yellow: #cccc99;
-    --blue: #9999cc;
-    --purple: #cc99cc;
-    --aqua: #99cccc;
-    --orange: #ccaa99;
-    --gray: #999999;
+  /* Washed out colors */
+  --red: #cc9999;
+  --green: #99cc99;
+  --yellow: #cccc99;
+  --blue: #9999cc;
+  --purple: #cc99cc;
+  --aqua: #99cccc;
+  --orange: #ccaa99;
+  --gray: #999999;
 }
 ```
 
@@ -314,11 +325,13 @@ To use a different theme, modify these variables and update the syntax highlight
 hotnote is a browser-based application that uses the File System Access API for local file operations:
 
 **File System Adapter (`FileSystemAdapter` in app.js)**
+
 - Uses browser's native File System Access API
 - Provides unified interface for file operations
 - Handles folders, files, reading, and writing
 
 **Key Features:**
+
 - Direct filesystem access (Chrome/Edge/Safari)
 - Progressive Web App (PWA) capabilities
 - Offline-first architecture
@@ -326,6 +339,7 @@ hotnote is a browser-based application that uses the File System Access API for 
 - LocalStorage for temporary changes
 
 The adapter handles:
+
 - Opening folders and files
 - Reading and writing file content
 - Directory navigation

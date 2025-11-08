@@ -78,7 +78,7 @@ export { createEnhancedFileHandle, createEnhancedDirectoryHandle };
 // Mock CodeMirror editor
 export const createMockCodeMirrorEditor = () => {
   let content = '';
-  let listeners = new Map();
+  const listeners = new Map();
 
   const mockView = {
     state: {
@@ -126,7 +126,7 @@ export const createMockCodeMirrorEditor = () => {
 // Mock Milkdown editor for markdown
 export const createMockMilkdownEditor = () => {
   let content = '';
-  let listeners = new Map();
+  const listeners = new Map();
 
   const mockEditor = {
     getMarkdown: vi.fn(() => content),

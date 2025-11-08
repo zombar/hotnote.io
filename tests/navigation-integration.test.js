@@ -1,8 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  createMockCodeMirrorEditor,
-  mockNavigationHistory,
-} from './setup.js';
+import { createMockCodeMirrorEditor, mockNavigationHistory } from './setup.js';
 import { createMockProject } from './mocks/filesystem.js';
 
 const createMockAppState = () => {
