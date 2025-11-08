@@ -14,6 +14,7 @@ const app = new digitalocean.App('hotnote-app', {
   spec: {
     name: 'hotnote',
     region: 'fra', // Frankfurt
+    domains: ['hotnote.io'],
     services: [
       {
         name: 'hotnote-web',
@@ -34,6 +35,17 @@ const app = new digitalocean.App('hotnote-app', {
   },
 });
 
-// Export the app's live URL
+// Create DigitalOcean DNS domain
+const domain = new digitalocean.Domain('hotnote-domain', {
+  name: 'hotnote.io',
+});
+
+// Export the app's live URL and domain info
 export const appUrl = app.liveUrl;
 export const appId = app.id;
+export const domainName = domain.name;
+export const nameservers = domain.urn.apply(() => [
+  'ns1.digitalocean.com',
+  'ns2.digitalocean.com',
+  'ns3.digitalocean.com',
+]);
