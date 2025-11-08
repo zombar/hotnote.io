@@ -1,7 +1,7 @@
 // Service Worker for hotnote
 // Provides offline functionality by caching app assets
 
-const CACHE_NAME = 'hotnote-v1';
+const CACHE_NAME = 'hotnote-v2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -43,46 +43,44 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - network first, fallback to cache (for fresh content)
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request)
+    // Try network first
+    fetch(event.request)
       .then((response) => {
-        // Cache hit - return response
-        if (response) {
+        // Check if valid response
+        if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
 
-        // Clone the request
-        const fetchRequest = event.request.clone();
+        // Clone the response to cache it
+        const responseToCache = response.clone();
 
-        return fetch(fetchRequest).then((response) => {
-          // Check if valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
-
-          // Clone the response
-          const responseToCache = response.clone();
-
-          // Cache the new resource
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-
-          return response;
-        }).catch(() => {
-          // If both cache and network fail, show offline page
-          // For now, just return a basic error response
-          return new Response('Offline - please check your connection', {
-            status: 503,
-            statusText: 'Service Unavailable',
-            headers: new Headers({
-              'Content-Type': 'text/plain'
-            })
+        // Update cache with fresh content
+        caches.open(CACHE_NAME)
+          .then((cache) => {
+            cache.put(event.request, responseToCache);
           });
-        });
+
+        return response;
+      })
+      .catch(() => {
+        // Network failed - try to serve from cache
+        return caches.match(event.request)
+          .then((response) => {
+            if (response) {
+              return response;
+            }
+            // If both cache and network fail, show offline message
+            return new Response('Offline - please check your connection', {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: new Headers({
+                'Content-Type': 'text/plain'
+              })
+            });
+          });
       })
   );
 });

@@ -3,6 +3,7 @@ import { commonmark } from '@milkdown/preset-commonmark';
 import { nord } from '@milkdown/theme-nord';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { history } from '@milkdown/plugin-history';
+import { gfm } from '@milkdown/preset-gfm';
 
 let milkdownEditor = null;
 let onChangeCallback = null;
@@ -33,6 +34,7 @@ export const initMarkdownEditor = async (container, initialContent = '', onChang
             })
             .use(nord)
             .use(commonmark)
+            .use(gfm)
             .use(listener)
             .use(history)
             .create();
