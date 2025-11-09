@@ -807,7 +807,7 @@ const pathToUrlParam = () => {
 
   // Build path from currentPath array
   const pathParts = currentPath.map((p) => encodeURIComponent(p.name));
-  let fullPath = '/' + pathParts.join('/');
+  let fullPath = './' + pathParts.join('/');
 
   // Add filename if we have one
   if (currentFilename) {
@@ -820,12 +820,17 @@ const pathToUrlParam = () => {
 // Parse URL parameter back to path segments
 // eslint-disable-next-line no-unused-vars
 const urlParamToPath = (param) => {
-  if (!param || param === '/') {
+  if (!param || param === '/' || param === './') {
     return [];
   }
 
-  // Remove leading slash and split
-  const cleaned = param.startsWith('/') ? param.slice(1) : param;
+  // Remove leading ./ or / and split
+  let cleaned = param;
+  if (cleaned.startsWith('./')) {
+    cleaned = cleaned.slice(2);
+  } else if (cleaned.startsWith('/')) {
+    cleaned = cleaned.slice(1);
+  }
   return cleaned.split('/').filter((p) => p.length > 0);
 };
 

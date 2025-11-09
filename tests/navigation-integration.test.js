@@ -392,7 +392,7 @@ describe('Browser History Integration Tests', () => {
       const pathParts = currentPath.map((p) => p.name);
       let fullPath = '';
       if (currentPath.length > 0) {
-        fullPath = '/' + pathParts.join('/');
+        fullPath = './' + pathParts.join('/');
         if (currentFilename) {
           fullPath += '/' + currentFilename;
         }
@@ -406,12 +406,12 @@ describe('Browser History Integration Tests', () => {
       const currentFilename = '';
 
       const pathParts = currentPath.map((p) => p.name);
-      let fullPath = '/' + pathParts.join('/');
+      let fullPath = './' + pathParts.join('/');
       if (currentFilename) {
         fullPath += '/' + currentFilename;
       }
 
-      expect(fullPath).toBe('/workspace');
+      expect(fullPath).toBe('./workspace');
     });
 
     it('should return nested folder path', () => {
@@ -419,12 +419,12 @@ describe('Browser History Integration Tests', () => {
       const currentFilename = '';
 
       const pathParts = currentPath.map((p) => p.name);
-      let fullPath = '/' + pathParts.join('/');
+      let fullPath = './' + pathParts.join('/');
       if (currentFilename) {
         fullPath += '/' + currentFilename;
       }
 
-      expect(fullPath).toBe('/workspace/src/components');
+      expect(fullPath).toBe('./workspace/src/components');
     });
 
     it('should return full path with filename', () => {
@@ -432,21 +432,26 @@ describe('Browser History Integration Tests', () => {
       const currentFilename = 'app.js';
 
       const pathParts = currentPath.map((p) => p.name);
-      let fullPath = '/' + pathParts.join('/');
+      let fullPath = './' + pathParts.join('/');
       if (currentFilename) {
         fullPath += '/' + currentFilename;
       }
 
-      expect(fullPath).toBe('/workspace/src/app.js');
+      expect(fullPath).toBe('./workspace/src/app.js');
     });
   });
 
   describe('urlParamToPath', () => {
     const urlParamToPath = (param) => {
-      if (!param || param === '/') {
+      if (!param || param === '/' || param === './') {
         return [];
       }
-      const cleaned = param.startsWith('/') ? param.slice(1) : param;
+      let cleaned = param;
+      if (cleaned.startsWith('./')) {
+        cleaned = cleaned.slice(2);
+      } else if (cleaned.startsWith('/')) {
+        cleaned = cleaned.slice(1);
+      }
       return cleaned.split('/').filter((p) => p.length > 0);
     };
 
@@ -480,6 +485,26 @@ describe('Browser History Integration Tests', () => {
 
     it('should filter out empty segments', () => {
       expect(urlParamToPath('/workspace//src/app.js')).toEqual(['workspace', 'src', 'app.js']);
+    });
+
+    it('should return empty array for ./ path', () => {
+      expect(urlParamToPath('./')).toEqual([]);
+    });
+
+    it('should parse path with ./ prefix', () => {
+      expect(urlParamToPath('./workspace')).toEqual(['workspace']);
+    });
+
+    it('should parse nested path with ./ prefix', () => {
+      expect(urlParamToPath('./workspace/src/components')).toEqual([
+        'workspace',
+        'src',
+        'components',
+      ]);
+    });
+
+    it('should parse full path with ./ prefix and filename', () => {
+      expect(urlParamToPath('./workspace/src/app.js')).toEqual(['workspace', 'src', 'app.js']);
     });
   });
 
