@@ -156,39 +156,6 @@ jobs:
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          IMAGE_TAG: pr-${{ github.event.pull_request.number }}
+          IMAGE_TAG: latest
           GITHUB_REPOSITORY: ${{ github.repository }}
 
-  pulumi-deploy:
-    name: Pulumi Deploy
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [test, lint-and-format, security-and-docker]
-    environment:
-      name: production
-      url: https://hotnote.io
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-
-      - name: Install Pulumi dependencies
-        working-directory: infra
-        run: npm install
-
-      - name: Pulumi Deploy
-        uses: pulumi/actions@v5
-        with:
-          command: up
-          stack-name: hotnote
-          work-dir: infra
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
-          IMAGE_TAG: ${{ github.sha }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
