@@ -7,17 +7,20 @@ const imageTag = process.env.IMAGE_TAG || 'latest';
 
 // Use existing DigitalOcean Container Registry (registry.digitalocean.com/hotnote)
 const registry = 'hotnote';
-const repository = 'hotnote';
+const repository = 'hotnote'; // This is the repository within the registry
 
-// Debug: Log the image tag being used
-console.log(`Using image tag: ${imageTag}`);
+// Debug: Log the image configuration
+console.log(`Image configuration:`);
+console.log(`  Registry: ${registry}`);
+console.log(`  Repository: ${repository}`);
+console.log(`  Tag: ${imageTag}`);
+console.log(`  Full path would be: registry.digitalocean.com/${registry}/${repository}:${imageTag}`);
 
 // Create a DigitalOcean App Platform app
 const app = new digitalocean.App('hotnote-app', {
   spec: {
     name: 'hotnote',
-    region: 'fra', // Frankfurt
-    domains: ['hotnote.io'],
+    region: 'fra1', // Frankfurt
     services: [
       {
         name: 'hotnote-web',
