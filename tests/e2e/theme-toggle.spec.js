@@ -14,14 +14,14 @@ test.describe('Theme Toggle', () => {
 
     // Should now be in dark mode
     await expect(html).toHaveAttribute('data-theme', 'dark');
-    await expect(darkModeToggle).toHaveText('●');
+    await expect(darkModeToggle.locator('.material-symbols-outlined')).toHaveText('light_mode');
 
     // Click again to go back to light mode
     await darkModeToggle.click();
 
     // Should be back in light mode
     await expect(html).not.toHaveAttribute('data-theme', 'dark');
-    await expect(darkModeToggle).toHaveText('○');
+    await expect(darkModeToggle.locator('.material-symbols-outlined')).toHaveText('dark_mode');
   });
 
   test('should preserve theme preference across page reloads', async ({ page }) => {
@@ -40,7 +40,7 @@ test.describe('Theme Toggle', () => {
 
     // Dark mode should still be active after reload
     await expect(html).toHaveAttribute('data-theme', 'dark');
-    await expect(darkModeToggle).toHaveText('●');
+    await expect(darkModeToggle.locator('.material-symbols-outlined')).toHaveText('light_mode');
   });
 
   test('should not change editor mode when toggling theme', async ({ page }) => {

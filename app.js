@@ -2803,6 +2803,8 @@ const toggleDarkMode = async () => {
       } else if (editorManager) {
         editorManager.setScrollPosition(scrollTop);
       }
+      // Restore focus after editor reinit
+      focusManager.focusEditor({ reason: 'theme-toggle' });
     }, 0);
   }
 };
