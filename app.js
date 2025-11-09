@@ -1291,12 +1291,13 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#file-picker-resize-handle')) return;
 
   // Don't close if click was on breadcrumb (handled by stopPropagation)
-  // Don't close if click was on navigation controls
+  // Don't close if click was on navigation controls or header
   const clickedElement = e.target;
   if (
     clickedElement.closest('.breadcrumb') ||
     clickedElement.closest('.nav-controls') ||
-    clickedElement.closest('.autocomplete-dropdown')
+    clickedElement.closest('.autocomplete-dropdown') ||
+    clickedElement.closest('header')
   ) {
     return;
   }
@@ -2882,6 +2883,30 @@ document.getElementById('rich-toggle-btn').addEventListener('click', () => {
 document.getElementById('dark-mode-toggle').addEventListener('click', () => {
   focusManager.saveFocusState();
   toggleDarkMode();
+});
+
+// Header click to toggle file picker
+document.querySelector('header').addEventListener('click', (e) => {
+  // Only handle if a folder is currently open
+  if (!currentDirHandle) return;
+
+  // Don't trigger if clicking on interactive elements
+  if (e.target.closest('button') || e.target.closest('input') || e.target.closest('label')) {
+    return;
+  }
+
+  const picker = document.getElementById('file-picker');
+  if (!picker) return;
+
+  // Toggle the file picker
+  if (picker.classList.contains('hidden')) {
+    // Open the file picker
+    focusManager.saveFocusState();
+    showFilePicker(currentDirHandle);
+  } else {
+    // Close the file picker
+    hideFilePicker();
+  }
 });
 
 // Browser back/forward button listener

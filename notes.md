@@ -4,8 +4,6 @@
 
 - mouseover the logo plays the animation in reverse (collapsing animation plays again when mouse moved)
 
-- the app should read system preferences to find out light or dark mode default
-
 - explore adding photo and video playback (if not too heavy, don't want to bloat the build)
 
 - increase padding at top and bottom of the rich text editor, imitate a website or blog
