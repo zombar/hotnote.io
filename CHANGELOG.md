@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/zombar/hotnote.io/compare/v1.3.0...v1.4.0) (2025-11-09)
+
+
+### Features
+
+* use .. and ... to traverse breadcrumbs, . triggers navbar text ([c29dbc4](https://github.com/zombar/hotnote.io/commit/c29dbc47f3fd5908ef9bdfe1d88f10a3667d3d9a))
+
+
+### Bug Fixes
+
+* broken deploy ([4316bcf](https://github.com/zombar/hotnote.io/commit/4316bcff9062f66a1563b26ef1dc102e2fb70d82))
+* broken folder picking ([5905730](https://github.com/zombar/hotnote.io/commit/59057300ae2ca470aed5a0ba557dc49fbefa6a7f))
+
 ## [1.3.0](https://github.com/zombar/hotnote.io/compare/v1.2.1...v1.3.0) (2025-11-09)
 
 
