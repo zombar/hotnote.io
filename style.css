@@ -167,12 +167,22 @@ header:has(.app-logo.compact)::after {
   animation: gradientSlide 3.3s linear forwards;
 }
 
+header {
+  transition: box-shadow 0.5s ease;
+}
+
+header:hover {
+  box-shadow:
+    0 2px 8px rgb(0 0 0 / 5%),
+    0 0 20px rgb(233 30 140 / 15%),
+    0 0 40px rgb(0 212 255 / 10%);
+}
+
 header:has(.app-logo.compact) {
   box-shadow:
     0 2px 8px rgb(0 0 0 / 5%),
     0 0 20px rgb(233 30 140 / 15%),
     0 0 40px rgb(0 212 255 / 10%);
-  transition: box-shadow 0.5s ease;
 }
 
 @keyframes gradientSlide {
@@ -188,29 +198,35 @@ header:has(.app-logo.compact) {
 .app-logo {
   display: flex;
   align-items: center;
-  font-family: Impact, 'Arial Black', sans-serif;
+  font-family: Rajdhani, Impact, 'Arial Black', sans-serif;
   font-size: 1.5rem;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: 0.056em;
-  color: var(--brand-pink);
   flex-shrink: 0;
-  text-shadow:
-    0 0 10px rgb(0 212 255 / 40%),
-    0 0 20px rgb(0 212 255 / 30%),
-    0 0 30px rgb(0 212 255 / 20%);
+  filter: drop-shadow(0 0 6px rgb(233 30 140 / 42.1875%))
+    drop-shadow(0 0 12px rgb(255 45 150 / 28.125%)) drop-shadow(0 0 20px rgb(200 30 200 / 28.125%))
+    drop-shadow(0 0 30px rgb(100 120 220 / 22.5%)) drop-shadow(0 0 45px rgb(0 212 255 / 21.0938%));
 }
 
 [data-theme='dark'] .app-logo {
-  color: var(--brand-cyan);
-  text-shadow:
-    0 0 15px rgb(255 45 150 / 50%),
-    0 0 25px rgb(255 45 150 / 40%),
-    0 0 35px rgb(255 45 150 / 30%);
+  filter: drop-shadow(0 0 15px rgb(255 45 150 / 50%)) drop-shadow(0 0 25px rgb(255 45 150 / 40%))
+    drop-shadow(0 0 35px rgb(255 45 150 / 30%));
 }
 
 .app-logo span {
   display: inline-block;
   transition: opacity 0.8s ease;
+  background: linear-gradient(135deg, #e91e8c 0%, #ff2d96 30%, #00d4ff 70%, #00b8e6 100%);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px rgb(128 128 128 / 40%);
+}
+
+[data-theme='dark'] .app-logo span {
+  background: linear-gradient(135deg, #00d4ff 0%, #00e5ff 30%, #ff2d96 70%, #e91e8c 100%);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px rgb(255 255 255 / 30%);
 }
 
 body:not(.preload) .app-logo span {
@@ -222,16 +238,10 @@ body:not(.preload) .app-logo span {
 
 /* Stagger the disappearing animation for each letter (H and N stay, rest disappear) */
 
-/* Each letter fades out then collapses in sequence */
+/* Each letter fades out and collapses in parallel */
 @keyframes letterDisappear {
   0% {
     opacity: 1;
-    width: auto;
-    margin: 0;
-  }
-
-  40% {
-    opacity: 0;
     width: auto;
     margin: 0;
   }
@@ -243,36 +253,184 @@ body:not(.preload) .app-logo span {
   }
 }
 
-.app-logo.compact span:nth-child(2) {
-  animation: letterDisappear 0.5s ease 0s forwards;
+/* Reverse animation for expanding - fade in and expand in parallel */
+@keyframes letterAppear {
+  0% {
+    opacity: 0;
+    width: 0;
+    margin: 0;
+  }
+
+  100% {
+    opacity: 1;
+    width: auto;
+    margin: 0;
+  }
+}
+
+/* Compact state (not animating) - letters are hidden (HN only) */
+.app-logo.compact:not(.animating) span:nth-child(2),
+.app-logo.compact:not(.animating) span:nth-child(3),
+.app-logo.compact:not(.animating) span:nth-child(5),
+.app-logo.compact:not(.animating) span:nth-child(6),
+.app-logo.compact:not(.animating) span:nth-child(7),
+.app-logo.compact:not(.animating) span:nth-child(8),
+.app-logo.compact:not(.animating) span:nth-child(9),
+.app-logo.compact:not(.animating) span:nth-child(10) {
+  opacity: 0;
+  width: 0;
+  margin: 0;
+}
+
+/* Compact state (not animating) - H and N are 30% larger with extra spacing */
+.app-logo.compact:not(.animating) span:nth-child(1) {
+  transform: scale(1.3);
+  margin-right: 0.15em;
 }
 
 .app-logo.compact span:nth-child(3) {
-  animation: letterDisappear 0.5s ease 0.4s forwards;
+  margin-right: 0;
 }
 
-.app-logo.compact span:nth-child(5) {
-  animation: letterDisappear 0.5s ease 0.8s forwards;
+.app-logo.compact:not(.animating) span:nth-child(4) {
+  transform: scale(1.3);
 }
 
-.app-logo.compact span:nth-child(6) {
-  animation: letterDisappear 0.5s ease 1.2s forwards;
+/* During collapse animation - H and N stay normal size */
+.app-logo.compact.animating span:nth-child(1),
+.app-logo.compact.animating span:nth-child(4) {
+  transform: scale(1);
+  margin-right: 0;
 }
 
-.app-logo.compact span:nth-child(7) {
-  animation: letterDisappear 0.5s ease 1.6s forwards;
+/* When animating to compact, letters start visible */
+.app-logo.compact.animating span:nth-child(2),
+.app-logo.compact.animating span:nth-child(3),
+.app-logo.compact.animating span:nth-child(5),
+.app-logo.compact.animating span:nth-child(6),
+.app-logo.compact.animating span:nth-child(7),
+.app-logo.compact.animating span:nth-child(8),
+.app-logo.compact.animating span:nth-child(9),
+.app-logo.compact.animating span:nth-child(10) {
+  opacity: 1;
+  width: auto;
+  margin: 0;
 }
 
-.app-logo.compact span:nth-child(8) {
-  animation: letterDisappear 0.5s ease 2s forwards;
+/* Expanded state (not animating) - all letters visible (HOTNOTE.IO) */
+.app-logo.expanded:not(.animating) span:nth-child(2),
+.app-logo.expanded:not(.animating) span:nth-child(3),
+.app-logo.expanded:not(.animating) span:nth-child(5),
+.app-logo.expanded:not(.animating) span:nth-child(6),
+.app-logo.expanded:not(.animating) span:nth-child(7),
+.app-logo.expanded:not(.animating) span:nth-child(8),
+.app-logo.expanded:not(.animating) span:nth-child(9),
+.app-logo.expanded:not(.animating) span:nth-child(10) {
+  opacity: 1;
+  width: auto;
+  margin: 0;
 }
 
-.app-logo.compact span:nth-child(9) {
-  animation: letterDisappear 0.5s ease 2.4s forwards;
+/* When animating to expanded, letters start hidden */
+.app-logo.expanded.animating span:nth-child(2),
+.app-logo.expanded.animating span:nth-child(3),
+.app-logo.expanded.animating span:nth-child(5),
+.app-logo.expanded.animating span:nth-child(6),
+.app-logo.expanded.animating span:nth-child(7),
+.app-logo.expanded.animating span:nth-child(8),
+.app-logo.expanded.animating span:nth-child(9),
+.app-logo.expanded.animating span:nth-child(10) {
+  opacity: 0;
+  width: 0;
+  margin: 0;
 }
 
-.app-logo.compact span:nth-child(10) {
-  animation: letterDisappear 0.5s ease 2.8s forwards;
+/* Expanded state - H and N are normal size with normal spacing */
+.app-logo.expanded span:nth-child(1) {
+  transform: scale(1);
+  margin-right: 0;
+}
+
+.app-logo.expanded span:nth-child(3) {
+  margin-right: 0.3em !important;
+}
+
+.app-logo.expanded span:nth-child(4) {
+  transform: scale(1);
+}
+
+/* Collapse animation - right to left (HOTNOTE.IO → HN) */
+
+/* O at end (10) disappears first, O after H (2) disappears last */
+
+/* 40% faster: 0.25s → 0.15s duration, delays reduced proportionally */
+.app-logo.compact.animating span:nth-child(10) {
+  animation: letterDisappear 0.15s ease 0s forwards;
+}
+
+.app-logo.compact.animating span:nth-child(9) {
+  animation: letterDisappear 0.15s ease 0.15s forwards;
+}
+
+.app-logo.compact.animating span:nth-child(8) {
+  animation: letterDisappear 0.15s ease 0.3s forwards;
+}
+
+.app-logo.compact.animating span:nth-child(7) {
+  animation: letterDisappear 0.15s ease 0.45s forwards;
+}
+
+.app-logo.compact.animating span:nth-child(6) {
+  animation: letterDisappear 0.15s ease 0.6s forwards;
+}
+
+.app-logo.compact.animating span:nth-child(5) {
+  animation: letterDisappear 0.15s ease 0.75s forwards;
+}
+
+.app-logo.compact.animating span:nth-child(3) {
+  animation: letterDisappear 0.15s ease 0.9s forwards;
+}
+
+.app-logo.compact.animating span:nth-child(2) {
+  animation: letterDisappear 0.15s ease 1.05s forwards;
+}
+
+/* Expand animation - left to right (HN → HOTNOTE.IO) */
+
+/* O after H (2) appears first, O at end (10) appears last */
+
+/* 40% faster: 0.125s → 0.075s duration, delays reduced proportionally */
+.app-logo.expanded.animating span:nth-child(2) {
+  animation: letterAppear 0.075s ease 0s forwards;
+}
+
+.app-logo.expanded.animating span:nth-child(3) {
+  animation: letterAppear 0.075s ease 0.075s forwards;
+}
+
+.app-logo.expanded.animating span:nth-child(5) {
+  animation: letterAppear 0.075s ease 0.15s forwards;
+}
+
+.app-logo.expanded.animating span:nth-child(6) {
+  animation: letterAppear 0.075s ease 0.225s forwards;
+}
+
+.app-logo.expanded.animating span:nth-child(7) {
+  animation: letterAppear 0.075s ease 0.3s forwards;
+}
+
+.app-logo.expanded.animating span:nth-child(8) {
+  animation: letterAppear 0.075s ease 0.375s forwards;
+}
+
+.app-logo.expanded.animating span:nth-child(9) {
+  animation: letterAppear 0.075s ease 0.45s forwards;
+}
+
+.app-logo.expanded.animating span:nth-child(10) {
+  animation: letterAppear 0.075s ease 0.525s forwards;
 }
 
 /* Accordion animation for navbar elements */
@@ -294,20 +452,22 @@ body:not(.preload) .app-logo span {
 }
 
 /* Stagger the accordion animations for each navbar section */
+
+/* 4x faster than logo animation for quicker button availability */
 .app-logo.compact ~ .nav-controls {
-  animation: accordionSpread 0.5s ease 0.6s forwards;
+  animation: accordionSpread 0.0625s ease 0.075s forwards;
 }
 
 .app-logo.compact ~ .nav-controls ~ #new-btn {
-  animation: accordionSpread 0.5s ease 1s forwards;
+  animation: accordionSpread 0.0625s ease 0.125s forwards;
 }
 
 .app-logo.compact ~ .nav-controls ~ #new-btn ~ .breadcrumb {
-  animation: accordionSpread 0.5s ease 1.8s forwards;
+  animation: accordionSpread 0.0625s ease 0.225s forwards;
 }
 
 .app-logo.compact ~ .nav-controls ~ #new-btn ~ .breadcrumb ~ .actions {
-  animation: accordionSpread 0.5s ease 2.6s forwards;
+  animation: accordionSpread 0.0625s ease 0.325s forwards;
 }
 
 .nav-controls {

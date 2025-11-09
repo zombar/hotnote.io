@@ -552,12 +552,117 @@ const initCodeMirrorEditor = async (
   }
 };
 
+// Timer for auto-collapsing logo after expansion
+let logoCollapseTimer = null;
+let initialCollapseScheduled = false;
+
 // Update logo state based on whether a folder or file is open
 const updateLogoState = () => {
   const logo = document.querySelector('.app-logo');
   if (logo && (currentFileHandle || currentDirHandle)) {
-    logo.classList.add('compact');
+    // Check if this is the first time (initial load)
+    const isFirstLoad = !logo.dataset.hoverSetup;
+
+    if (isFirstLoad && !initialCollapseScheduled) {
+      // Mark that we've scheduled the initial collapse to prevent duplicates
+      initialCollapseScheduled = true;
+
+      // Set initial expanded state immediately (without animation)
+      logo.classList.add('expanded');
+
+      // Wait 2.5 seconds before starting the initial collapse animation
+      // This avoids synchronous loading spike issues and gives smoother animation
+      setTimeout(() => {
+        // Only animate if still in expanded state (user hasn't interacted)
+        if (logo.classList.contains('expanded')) {
+          // Switch from expanded to compact with animation
+          logo.classList.remove('expanded');
+          logo.classList.add('compact', 'animating');
+
+          // Remove animating class after animation completes (1.2s total animation time)
+          setTimeout(() => {
+            logo.classList.remove('animating');
+          }, 1200);
+        }
+      }, 2500);
+    } else if (!isFirstLoad) {
+      // Already initialized, just ensure compact state without animation
+      if (!logo.classList.contains('expanded')) {
+        logo.classList.add('compact');
+        logo.classList.remove('animating');
+      }
+    }
+
+    // Setup hover interaction if not already done
+    if (!logo.dataset.hoverSetup) {
+      setupLogoHoverInteraction(logo);
+      logo.dataset.hoverSetup = 'true';
+    }
   }
+};
+
+// Setup hover interaction for logo expansion/collapse
+const setupLogoHoverInteraction = (logo) => {
+  const navbar = document.querySelector('header[data-testid="navbar"]');
+
+  if (!navbar) return;
+
+  // Expand when hovering over logo
+  logo.addEventListener('mouseenter', () => {
+    // Only expand if currently in compact state (not expanded or animating)
+    if (!logo.classList.contains('compact')) {
+      return;
+    }
+
+    // Clear any pending collapse timer
+    if (logoCollapseTimer) {
+      clearTimeout(logoCollapseTimer);
+      logoCollapseTimer = null;
+    }
+
+    // Switch from compact to expanded with animation
+    logo.classList.remove('compact');
+    logo.classList.add('expanded', 'animating');
+
+    // Remove animating class after expand animation completes (0.6s total)
+    setTimeout(() => {
+      logo.classList.remove('animating');
+    }, 600);
+  });
+
+  // Start collapse timer when leaving navbar
+  navbar.addEventListener('mouseleave', () => {
+    // Only start timer if logo is expanded
+    if (logo.classList.contains('expanded')) {
+      // Clear any existing timer
+      if (logoCollapseTimer) {
+        clearTimeout(logoCollapseTimer);
+        logoCollapseTimer = null;
+      }
+
+      // Set timer to collapse after 5 seconds
+      logoCollapseTimer = setTimeout(() => {
+        // Switch from expanded to compact with animation
+        logo.classList.remove('expanded');
+        logo.classList.add('compact', 'animating');
+
+        // Remove animating class after collapse animation completes (1.2s total)
+        setTimeout(() => {
+          logo.classList.remove('animating');
+        }, 1200);
+
+        logoCollapseTimer = null;
+      }, 5000);
+    }
+  });
+
+  // Clear collapse timer when entering navbar
+  navbar.addEventListener('mouseenter', () => {
+    if (logoCollapseTimer) {
+      clearTimeout(logoCollapseTimer);
+      logoCollapseTimer = null;
+    }
+  });
 };
 
 // Update breadcrumb display
