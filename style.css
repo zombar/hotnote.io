@@ -418,6 +418,23 @@ body:not(.preload) .app-logo span {
   min-width: 150px;
   width: auto;
   position: relative;
+  caret-color: transparent; /* Hide default caret */
+}
+
+/* Custom block cursor for breadcrumb input */
+.breadcrumb-cursor {
+  position: absolute;
+  top: 0;
+  display: inline-block;
+  width: 0.7em;
+  height: 1.2em;
+  background: var(--brand-pink);
+  pointer-events: none;
+  animation: cursor-blink 1.2s steps(2, start) infinite;
+}
+
+[data-theme='dark'] .breadcrumb-cursor {
+  background: var(--brand-pink);
 }
 
 .breadcrumb-input::placeholder {

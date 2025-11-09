@@ -561,6 +561,12 @@ const updateBreadcrumb = () => {
     if (isDirty) {
       item.classList.add('has-changes');
     }
+    // Make breadcrumb clickable to open folder
+    item.style.cursor = 'pointer';
+    item.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await openFolder();
+    });
     breadcrumb.appendChild(item);
   } else {
     // Show path with abbreviation for long paths
@@ -1260,6 +1266,10 @@ const showFilePicker = async (dirHandle) => {
 
     fileList.appendChild(item);
   }
+
+  // Show search input with cursor when file picker is displayed
+  // Note: Don't await - we want this to run asynchronously
+  quickFileCreate('');
 };
 
 // Hide file picker
@@ -2183,6 +2193,10 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
     input.value = initialValue;
     input.autocomplete = 'off';
 
+    // Create custom block cursor
+    const cursor = document.createElement('span');
+    cursor.className = 'breadcrumb-cursor';
+
     // Create dropdown for autocomplete
     const dropdown = document.createElement('div');
     dropdown.className = 'autocomplete-dropdown';
@@ -2439,7 +2453,11 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
             dropdown.style.display = 'none';
             selectedIndex = -1;
           } else {
+            // Close input and focus editor
             handleCancel();
+            setTimeout(() => {
+              focusManager.focusEditor({ reason: 'escape-from-navbar' });
+            }, 50);
           }
         }
       } else {
@@ -2448,7 +2466,11 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
           handleSubmit();
         } else if (e.key === 'Escape') {
           e.preventDefault();
+          // Close input and focus editor
           handleCancel();
+          setTimeout(() => {
+            focusManager.focusEditor({ reason: 'escape-from-navbar' });
+          }, 50);
         }
       }
     });
@@ -2459,13 +2481,62 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
         dropdown.style.display = 'none';
         handleCancel();
       }, 200);
+      // Hide cursor when input loses focus
+      cursor.style.display = 'none';
     });
 
+    input.addEventListener('focus', () => {
+      // Show cursor when input gains focus
+      cursor.style.display = 'inline-block';
+    });
+
+    // Function to update cursor position
+    const updateCursorPosition = () => {
+      try {
+        // Only update if input is in the DOM
+        if (!input.isConnected) return;
+
+        // Create a temporary span to measure text width up to cursor position
+        const measureSpan = document.createElement('span');
+        measureSpan.style.visibility = 'hidden';
+        measureSpan.style.position = 'absolute';
+        measureSpan.style.whiteSpace = 'pre';
+
+        const computedStyle = window.getComputedStyle(input);
+        measureSpan.style.font = computedStyle.font;
+        measureSpan.style.fontSize = computedStyle.fontSize;
+        measureSpan.style.fontFamily = computedStyle.fontFamily;
+        measureSpan.style.fontWeight = computedStyle.fontWeight;
+
+        const cursorPos = input.selectionStart || 0;
+        measureSpan.textContent = input.value.substring(0, cursorPos) || '\u200B';
+        document.body.appendChild(measureSpan);
+
+        const width = measureSpan.offsetWidth;
+        document.body.removeChild(measureSpan);
+
+        cursor.style.left = width + 'px';
+      } catch (err) {
+        // Silently fail if there's an error
+        console.debug('Cursor position update error:', err);
+      }
+    };
+
+    // Update cursor position on input and selection change
+    input.addEventListener('input', updateCursorPosition);
+    input.addEventListener('keyup', updateCursorPosition);
+    input.addEventListener('click', updateCursorPosition);
+    input.addEventListener('select', updateCursorPosition);
+
     autocompleteContainer.appendChild(input);
+    autocompleteContainer.appendChild(cursor);
     breadcrumb.appendChild(autocompleteContainer);
     // Append dropdown to body for fixed positioning
     document.body.appendChild(dropdown);
     input.focus();
+
+    // Initial cursor position update
+    setTimeout(updateCursorPosition, 0);
 
     // Trigger autocomplete if there's an initial value
     if (initialValue) {
@@ -3004,8 +3075,8 @@ document.addEventListener('keydown', (e) => {
   focusManager.focusEditor({ reason: 'enter-key' });
 });
 
-// Global Escape key listener to blur editor
-document.addEventListener('keydown', (e) => {
+// Global Escape key listener to blur editor and show search
+document.addEventListener('keydown', async (e) => {
   if (e.key !== 'Escape') {
     return;
   }
@@ -3017,9 +3088,37 @@ document.addEventListener('keydown', (e) => {
 
   // Check if editor has focus
   if (focusManager.hasEditorFocus()) {
-    // Blur the active element (editor)
+    // Blur the active element (editor) and show search box
     e.preventDefault();
     document.activeElement.blur();
+
+    // Show search box if we have a directory context
+    if (currentDirHandle) {
+      await quickFileCreate('');
+      // Select all text in the input
+      const input = document.querySelector('.breadcrumb-input');
+      if (input) {
+        input.select();
+      }
+    }
+  }
+});
+
+// Breadcrumb click handler to show file picker
+document.addEventListener('DOMContentLoaded', () => {
+  const breadcrumb = document.getElementById('breadcrumb');
+  if (breadcrumb) {
+    breadcrumb.addEventListener('click', (e) => {
+      // Only handle if not clicking on a specific breadcrumb item or input
+      if (
+        !e.target.classList.contains('breadcrumb-item') &&
+        !e.target.classList.contains('breadcrumb-input') &&
+        !e.target.closest('.autocomplete-container') &&
+        currentDirHandle
+      ) {
+        showFilePicker(currentDirHandle);
+      }
+    });
   }
 });
 

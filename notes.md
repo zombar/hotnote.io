@@ -31,3 +31,7 @@
 - if there are autocomplete results in the search / autocomplete window, other search results should hold off for a second or two (we can still be gathering the results in the background, just not displaying them)
 
 - split app.js file up into library functions
+
+- look into the preexisting shortcuts using the '.' and '/' keys to activate the search box, if they are now superceeded by the escape key functionality
+
+  &#x20; they should be removed
