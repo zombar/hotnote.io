@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.10.0](https://github.com/zombar/hotnote.io/compare/v1.9.0...v1.10.0) (2025-11-09)
+
+
+### Features
+
+* clicking on navbar toggles open file picker ([#43](https://github.com/zombar/hotnote.io/issues/43)) ([a8f0047](https://github.com/zombar/hotnote.io/commit/a8f00472f314a1cc33b4cdc86cc0e9d9a2c8bd2c))
+* escape key shortcuts, blur out of context editor ([#40](https://github.com/zombar/hotnote.io/issues/40)) ([2c35243](https://github.com/zombar/hotnote.io/commit/2c352439a05e4b0a16121f9143bfa16396193b2b))
+* follow system theme unless overriden ([289b674](https://github.com/zombar/hotnote.io/commit/289b674302834b801d4e4a3669e2036b10941419))
+
 ## [1.9.0](https://github.com/zombar/hotnote.io/compare/v1.8.0...v1.9.0) (2025-11-09)
 
 
