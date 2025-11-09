@@ -481,7 +481,10 @@ const initCodeMirrorEditor = async (
       {
         key: 'Mod-n',
         run: () => {
-          newFile();
+          // Only allow new file if workspace is open
+          if (currentDirHandle) {
+            newFile();
+          }
           return true;
         },
       },
@@ -749,6 +752,21 @@ const updateNavigationButtons = () => {
   document.getElementById('back-btn').disabled = historyIndex <= 0;
   document.getElementById('forward-btn').disabled = historyIndex >= navigationHistory.length - 1;
   document.getElementById('folder-up-btn').disabled = currentPath.length === 0;
+};
+
+// Update new file button state based on workspace
+const updateNewButtonState = () => {
+  const newBtn = document.getElementById('new-btn');
+  const hasWorkspace = currentDirHandle !== null;
+
+  newBtn.disabled = !hasWorkspace;
+
+  // Update tooltip to provide helpful feedback
+  if (hasWorkspace) {
+    newBtn.title = 'New file (Ctrl/Cmd+N)';
+  } else {
+    newBtn.title = 'Open a folder first to create new files';
+  }
 };
 
 // Convert current path and filename to URL parameter
@@ -1088,6 +1106,7 @@ const openFolder = async () => {
 
     updateBreadcrumb();
     updateLogoState();
+    updateNewButtonState();
   } catch (err) {
     if (err.name !== 'AbortError') {
       console.error('Error opening folder:', err);
@@ -2794,6 +2813,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   await initEditor();
   updateBreadcrumb();
   updateNavigationButtons();
+  updateNewButtonState();
 
   // Start autosave (enabled by default)
   if (autosaveEnabled) {

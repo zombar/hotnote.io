@@ -12,7 +12,7 @@
 
 - if there is only one item in the autocomplete list it should be selected
 
-- prettify the `localdir` param in the path
+- add a . prefix to the`localdir` param in the path
 
 - security linting / detection
 
