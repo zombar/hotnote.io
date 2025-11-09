@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0](https://github.com/zombar/hotnote.io/compare/v1.4.1...v1.5.0) (2025-11-09)
+
+
+### Features
+
+* add new version reminder banner with reload button ([11c5bae](https://github.com/zombar/hotnote.io/commit/11c5bae8f7f69d02279ec83d6c6e13fbbf1f0e6e))
+* improved navbar text entry ux ([aa8a052](https://github.com/zombar/hotnote.io/commit/aa8a052e95eedbf9a309b1347ab3fbe185ed19b1))
+* params local file nav and browser back forwards integration ([8993f73](https://github.com/zombar/hotnote.io/commit/8993f7331f94112d9abb5810b0dc8e55d7b42e1a))
+
+
+### Bug Fixes
+
+* user can close the file picker in welcome mode ([fac974b](https://github.com/zombar/hotnote.io/commit/fac974b541998f378550e186c4ac71325c5c9e7f))
+
 ## [1.4.1](https://github.com/zombar/hotnote.io/compare/v1.4.0...v1.4.1) (2025-11-09)
 
 
