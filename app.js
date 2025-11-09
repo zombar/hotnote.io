@@ -728,7 +728,7 @@ const addToHistory = () => {
   // Sync with browser history (unless we're navigating via popstate)
   if (!isPopStateNavigation) {
     const urlPath = pathToUrlParam();
-    const url = urlPath ? `?localdir=${encodeURIComponent(urlPath)}` : window.location.pathname;
+    const url = urlPath ? `?localdir=${urlPath}` : window.location.pathname;
     const title = currentFilename || 'hotnote';
 
     window.history.pushState(
@@ -756,12 +756,12 @@ const pathToUrlParam = () => {
   }
 
   // Build path from currentPath array
-  const pathParts = currentPath.map((p) => p.name);
+  const pathParts = currentPath.map((p) => encodeURIComponent(p.name));
   let fullPath = '/' + pathParts.join('/');
 
   // Add filename if we have one
   if (currentFilename) {
-    fullPath += '/' + currentFilename;
+    fullPath += '/' + encodeURIComponent(currentFilename);
   }
 
   return fullPath;
@@ -837,7 +837,7 @@ const goBack = async () => {
 
   // Update URL to match current state
   const urlPath = pathToUrlParam();
-  const url = urlPath ? `?localdir=${encodeURIComponent(urlPath)}` : window.location.pathname;
+  const url = urlPath ? `?localdir=${urlPath}` : window.location.pathname;
   const title = currentFilename || 'hotnote';
   window.history.replaceState(
     {
@@ -907,7 +907,7 @@ const goForward = async () => {
 
   // Update URL to match current state
   const urlPath = pathToUrlParam();
-  const url = urlPath ? `?localdir=${encodeURIComponent(urlPath)}` : window.location.pathname;
+  const url = urlPath ? `?localdir=${urlPath}` : window.location.pathname;
   const title = currentFilename || 'hotnote';
   window.history.replaceState(
     {
