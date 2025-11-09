@@ -12,11 +12,9 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build
-
-# Extract version from package.json
-RUN node -p "require('./package.json').version" > /app/VERSION
+# Build the application and extract version
+RUN npm run build && \
+    node -p "require('./package.json').version" > /app/VERSION
 
 # Production stage
 FROM nginx:alpine
@@ -50,4 +48,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost/ || exit 1
 
 # Start nginx with environment variable substitution
-CMD /bin/sh -c "export APP_VERSION=$(cat /app/VERSION) && envsubst '\$APP_VERSION' < /etc/nginx/conf.d/default.conf > /tmp/default.conf && mv /tmp/default.conf /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+CMD ["/bin/sh", "-c", "export APP_VERSION=$(cat /app/VERSION) && envsubst '$APP_VERSION' < /etc/nginx/conf.d/default.conf > /tmp/default.conf && mv /tmp/default.conf /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
