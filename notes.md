@@ -1,11 +1,5 @@
 ## TODO list:
 
-- ~~output version number to logs at init~~
-
-- ~~changing theme shouldn't close welcome screen~~
-
-- ~~use googles material ui outline icons for the button and decide an icon based on button function. visually 'join' buttons that are close together into a group of buttons, round off corners of the groups so the group of button represents a pill shape. all buttons should have an icon, no text (source and rm buttons must change)~~
-
 - fix PWA not showing when hosting on digitalocean
 
 - mouseover the logo plays the animation in reverse (collapsing animation plays again when mouse moved)

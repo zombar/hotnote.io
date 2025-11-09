@@ -1175,7 +1175,7 @@ button:disabled:hover {
     'Apple Color Emoji', 'Segoe UI Emoji';
   font-size: 1rem;
   line-height: 1.6;
-  padding: 1.5rem;
+  padding: 0 1.5rem;
   overflow: auto;
   display: flex;
   justify-content: center;
@@ -1206,6 +1206,8 @@ button:disabled:hover {
 .milkdown .ProseMirror {
   outline: none;
   min-height: 100%;
+  padding: 4rem 0 7rem;
+  box-sizing: content-box;
 }
 
 .milkdown .ProseMirror-focused {
