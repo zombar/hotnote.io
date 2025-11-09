@@ -84,6 +84,12 @@ jobs:
       - name: Lint CSS
         run: npm run lint:css
 
+      - name: Lint YAML
+        run: npm run lint:yaml
+
+      - name: Validate Nginx Config
+        run: npm run lint:nginx
+
       - name: Check for unused exports
         run: npm run check:unused
         continue-on-error: true
