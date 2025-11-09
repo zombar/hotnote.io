@@ -188,4 +188,59 @@ test.describe('Focus Management', () => {
     const editor = page.getByTestId('editor');
     await expect(editor).toBeVisible();
   });
+
+  test('should blur editor when pressing Escape', async ({ page }) => {
+    await page.goto('/');
+
+    // Wait for app to load
+    await page.waitForSelector('[data-testid="editor"]');
+
+    // Focus the editor using Enter key
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+
+    // Verify editor has focus
+    const hasEditorFocusBefore = await page.evaluate(() => {
+      const activeElement = document.activeElement;
+      return (
+        activeElement &&
+        (activeElement.classList.contains('cm-content') ||
+          activeElement.classList.contains('ProseMirror'))
+      );
+    });
+
+    expect(hasEditorFocusBefore).toBeTruthy();
+
+    // Verify editor is not visually blurred when focused
+    const isBlurredBefore = await page.evaluate(() => {
+      const editorElement = document.getElementById('editor');
+      return editorElement && editorElement.classList.contains('blurred');
+    });
+
+    expect(isBlurredBefore).toBeFalsy();
+
+    // Press Escape to blur the editor
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+
+    // Verify editor no longer has focus
+    const hasEditorFocusAfter = await page.evaluate(() => {
+      const activeElement = document.activeElement;
+      return (
+        activeElement &&
+        (activeElement.classList.contains('cm-content') ||
+          activeElement.classList.contains('ProseMirror'))
+      );
+    });
+
+    expect(hasEditorFocusAfter).toBeFalsy();
+
+    // Verify editor is visually blurred when not focused
+    const isBlurredAfter = await page.evaluate(() => {
+      const editorElement = document.getElementById('editor');
+      return editorElement && editorElement.classList.contains('blurred');
+    });
+
+    expect(isBlurredAfter).toBeTruthy();
+  });
 });

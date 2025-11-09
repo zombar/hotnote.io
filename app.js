@@ -2979,8 +2979,54 @@ document.addEventListener('keydown', (e) => {
   focusManager.focusEditor({ reason: 'enter-key' });
 });
 
+// Global Escape key listener to blur editor
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') {
+    return;
+  }
+
+  // Don't trigger if navbar input is showing
+  if (document.querySelector('.breadcrumb-input')) {
+    return;
+  }
+
+  // Check if editor has focus
+  if (focusManager.hasEditorFocus()) {
+    // Blur the active element (editor)
+    e.preventDefault();
+    document.activeElement.blur();
+  }
+});
+
+// Visual blur effect management - toggle blur class on editor based on focus
+function updateEditorBlurState() {
+  const editorElement = document.getElementById('editor');
+  if (!editorElement) return;
+
+  if (focusManager.hasEditorFocus()) {
+    editorElement.classList.remove('blurred');
+  } else {
+    editorElement.classList.add('blurred');
+  }
+}
+
+// Monitor focus changes to update blur state
+document.addEventListener('focusin', () => {
+  updateEditorBlurState();
+});
+
+document.addEventListener('focusout', () => {
+  // Use setTimeout to allow focus to shift to new element
+  setTimeout(() => {
+    updateEditorBlurState();
+  }, 10);
+});
+
 // Initialize dark mode on load
 initDarkMode();
+
+// Initialize blur state
+updateEditorBlurState();
 
 // Register service worker for PWA (disabled in development)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
