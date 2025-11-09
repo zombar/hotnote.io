@@ -26,6 +26,8 @@ export class MockFileSystemWritableFileStream {
   async close() {
     if (!this.closed) {
       this.fileHandle._content = this.content;
+      this.fileHandle._lastModified = Date.now();
+      this.fileHandle._size = this.content.length;
       this.closed = true;
     }
   }
@@ -42,16 +44,20 @@ export class MockFileSystemFileHandle {
     this._content = content;
     this._permissionState = options.permissionState || 'granted';
     this._parent = options.parent || null;
+    this._lastModified = options.lastModified || Date.now();
+    this._size = content.length;
   }
 
   async getFile() {
     if (this._permissionState !== 'granted') {
       throw new Error('Permission denied');
     }
-    const blob = new Blob([this._content], { type: 'text/plain' });
-    blob.name = this.name;
-    blob.lastModified = Date.now();
-    return blob;
+    // Create a File-like object with proper properties
+    const file = new File([this._content], this.name, {
+      type: 'text/plain',
+      lastModified: this._lastModified,
+    });
+    return file;
   }
 
   async createWritable(options = {}) {
@@ -79,6 +85,8 @@ export class MockFileSystemFileHandle {
   // Helper method for testing
   _setContent(content) {
     this._content = content;
+    this._size = content.length;
+    this._lastModified = Date.now();
   }
 
   _getContent() {
@@ -87,6 +95,14 @@ export class MockFileSystemFileHandle {
 
   _setPermissionState(state) {
     this._permissionState = state;
+  }
+
+  _setLastModified(timestamp) {
+    this._lastModified = timestamp;
+  }
+
+  _getLastModified() {
+    return this._lastModified;
   }
 }
 

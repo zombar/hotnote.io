@@ -1610,3 +1610,80 @@ button:disabled:hover {
   --nord-bg: var(--bg-primary);
   --nord-fg: var(--text-primary);
 }
+
+/* File syncing state */
+#editor.syncing {
+  filter: blur(2px);
+  opacity: 0.6;
+  transition:
+    filter 0.3s ease,
+    opacity 0.3s ease;
+  pointer-events: none;
+}
+
+/* Breadcrumb syncing animation */
+@keyframes sync-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes sync-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+#breadcrumb.syncing {
+  animation: sync-pulse 1s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+#breadcrumb.syncing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgb(138 180 248 / 15%) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: sync-shimmer 1.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* File reload toast notification */
+.file-reload-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+  font-size: 13px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10000;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+
+.file-reload-toast.show {
+  opacity: 0.9;
+  transform: translateY(0);
+}

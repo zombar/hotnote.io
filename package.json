@@ -21,7 +21,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{js,html,css,json,md,yml,yaml}\"",
-    "format:check": "prettier --check \"**/*.{js,html,css,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{js,html,css,json,yml,yaml}\"",
     "lint:html": "html-validate \"*.html\"",
     "lint:css": "stylelint \"**/*.css\"",
     "lint:css:fix": "stylelint \"**/*.css\" --fix",
@@ -91,7 +91,7 @@
     "*.ts": [
       "prettier --write"
     ],
-    "*.{html,css,json,md}": [
+    "*.{html,css,json}": [
       "prettier --write"
     ],
     "*.{yml,yaml}": [
