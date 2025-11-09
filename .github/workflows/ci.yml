@@ -142,7 +142,7 @@ jobs:
           node-version: '20.x'
 
       - name: Install Pulumi dependencies
-        working-directory: infrastructure
+        working-directory: infra
         run: npm install
 
       - name: Pulumi Preview
@@ -152,7 +152,7 @@ jobs:
           stack-name: hotnote
           comment-on-pr: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          work-dir: infrastructure
+          work-dir: infra
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
@@ -178,7 +178,7 @@ jobs:
           node-version: '20.x'
 
       - name: Install Pulumi dependencies
-        working-directory: infrastructure
+        working-directory: infra
         run: npm install
 
       - name: Pulumi Deploy
@@ -186,7 +186,7 @@ jobs:
         with:
           command: up
           stack-name: hotnote
-          work-dir: infrastructure
+          work-dir: infra
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
           DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
