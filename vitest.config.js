@@ -5,11 +5,12 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: './tests/setup.js',
-    exclude: ['**/node_modules/**', '**/dist/**', '**/infra/**'],
+    include: ['tests/**/*.test.js'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/infra/**', 'infra/**', './infra/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
-      exclude: ['node_modules/', 'tests/', '*.config.js', 'sw.js'],
+      exclude: ['node_modules/', 'tests/', '*.config.js', 'sw.js', 'infra/', 'infra/**'],
       // Coverage thresholds for core files
       thresholds: {
         lines: 70,

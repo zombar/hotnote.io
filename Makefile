@@ -37,8 +37,10 @@ restart: ## Restart development server
 	@docker compose restart
 
 test: ## Run tests and all validation checks
-	@echo "$(CYAN)Running tests$(RESET)"
+	@echo "$(CYAN)Running app tests$(RESET)"
 	@npm test -- --run
+	@echo "$(CYAN)Running infrastructure tests$(RESET)"
+	@npm run test:infra
 	@echo "$(CYAN)Running validation checks$(RESET)"
 	@$(MAKE) validate
 
