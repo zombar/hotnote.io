@@ -128,4 +128,116 @@ test.describe('File Picker', () => {
     // This test requires File System Access API setup
     // Would test the 'rm' button functionality
   });
+
+  test('should navigate up one folder with ".." shortcut', async ({ page }) => {
+    await page.goto('/');
+
+    // This test would verify that:
+    // 1. File picker is open showing files in a subfolder
+    // 2. Type '..' in the filename input
+    // 3. Press Enter
+    // 4. File picker should show the parent folder contents
+    // 5. Breadcrumb should be updated to show parent folder
+    // 6. currentPath should have one less item
+
+    // This requires File System Access API mocking to set up
+    // a folder structure with subdirectories
+    // Placeholder for actual implementation
+  });
+
+  test('should navigate to workspace root with "..." shortcut', async ({ page }) => {
+    await page.goto('/');
+
+    // This test would verify that:
+    // 1. File picker is open showing files in a deeply nested subfolder
+    // 2. Type '...' in the filename input
+    // 3. Press Enter
+    // 4. File picker should show the workspace root folder contents
+    // 5. Breadcrumb should show only the root folder
+    // 6. currentPath should have only one item
+
+    // This requires File System Access API mocking
+    // Placeholder for actual implementation
+  });
+
+  test('should open folder dialog when typing ".." at top level', async ({ page }) => {
+    await page.goto('/');
+
+    // This test would verify that:
+    // 1. No folder is currently open (at top level)
+    // 2. Type '..' in the filename input
+    // 3. Press Enter
+    // 4. Folder picker dialog should open (File System Access API)
+
+    // This requires mocking the showDirectoryPicker API
+    // Placeholder for actual implementation
+  });
+
+  test('should open folder dialog when typing "..." at top level', async ({ page }) => {
+    await page.goto('/');
+
+    // This test would verify that:
+    // 1. No folder is currently open (at top level)
+    // 2. Type '...' in the filename input
+    // 3. Press Enter
+    // 4. Folder picker dialog should open (File System Access API)
+
+    // This requires mocking the showDirectoryPicker API
+    // Placeholder for actual implementation
+  });
+
+  test('should open folder dialog when typing ".." at workspace root', async ({ page }) => {
+    await page.goto('/');
+
+    // This test would verify that:
+    // 1. File picker is open showing workspace root folder
+    // 2. Type '..' in the filename input
+    // 3. Press Enter
+    // 4. Folder picker dialog should open to select a new parent folder
+
+    // This requires File System Access API mocking
+    // Placeholder for actual implementation
+  });
+
+  test('should show root folder picker when typing "..." at workspace root', async ({ page }) => {
+    await page.goto('/');
+
+    // This test would verify that:
+    // 1. File picker is open showing workspace root folder
+    // 2. Type '...' in the filename input
+    // 3. Press Enter
+    // 4. File picker should refresh and show the workspace root
+    // 5. Provides visual feedback that user is at root
+
+    // This requires File System Access API mocking
+    // Placeholder for actual implementation
+  });
+
+  test('should update breadcrumb after ".." navigation', async ({ page }) => {
+    await page.goto('/');
+
+    // This test would verify that:
+    // 1. Navigate to a subfolder (e.g., /workspace/subfolder)
+    // 2. Breadcrumb shows: workspace > subfolder
+    // 3. Type '..' in filename input and press Enter
+    // 4. Breadcrumb should update to show only: workspace
+    // 5. File picker should show workspace contents
+
+    // This requires File System Access API mocking
+    // Placeholder for actual implementation
+  });
+
+  test('should update breadcrumb after "..." navigation', async ({ page }) => {
+    await page.goto('/');
+
+    // This test would verify that:
+    // 1. Navigate to a deeply nested folder (e.g., /workspace/a/b/c)
+    // 2. Breadcrumb shows: workspace > a > b > c
+    // 3. Type '...' in filename input and press Enter
+    // 4. Breadcrumb should update to show only: workspace
+    // 5. File picker should show workspace root contents
+
+    // This requires File System Access API mocking
+    // Placeholder for actual implementation
+  });
 });

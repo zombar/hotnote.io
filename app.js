@@ -880,6 +880,9 @@ const openFolder = async () => {
     return;
   }
 
+  // Close file picker when showing the open dialog
+  hideFilePicker();
+
   try {
     // Save temp changes if file is dirty
     if (isDirty && currentFileHandle) {
@@ -1821,7 +1824,7 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
       });
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
       if (resolved) return;
       resolved = true;
 
@@ -1835,6 +1838,60 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
         resolve(null);
         return;
       }
+
+      // Handle special navigation shortcuts
+      if (filename === '..' || filename === '...') {
+        // Handle '..' - go up one folder
+        if (filename === '..') {
+          if (currentPath.length === 0) {
+            // At top level, open folder dialog
+            resolve(null);
+            await openFolder();
+            return;
+          } else if (currentPath.length === 1) {
+            // At root level, prompt to open a new parent folder
+            resolve(null);
+            await openFolder();
+            return;
+          } else {
+            // Remove the last path segment
+            currentPath.pop();
+            currentDirHandle = currentPath[currentPath.length - 1].handle;
+            currentFileHandle = null;
+            currentFilename = '';
+            await initEditor('', 'untitled');
+            addToHistory();
+            await showFilePicker(currentDirHandle);
+            updateBreadcrumb();
+            resolve(null);
+            return;
+          }
+        }
+
+        // Handle '...' - go to workspace root
+        if (filename === '...') {
+          if (currentPath.length === 0) {
+            // At top level, open folder dialog
+            resolve(null);
+            await openFolder();
+            return;
+          } else {
+            // Go to workspace root (first item in path)
+            const rootHandle = currentPath[0].handle;
+            currentPath = [currentPath[0]];
+            currentDirHandle = rootHandle;
+            currentFileHandle = null;
+            currentFilename = '';
+            await initEditor('', 'untitled');
+            addToHistory();
+            await showFilePicker(currentDirHandle);
+            updateBreadcrumb();
+            resolve(null);
+            return;
+          }
+        }
+      }
+
       // Check for invalid characters (allow / for paths)
       const invalidChars = /[\\:*?"<>|]/;
       if (invalidChars.test(filename)) {
@@ -2155,18 +2212,31 @@ const toggleDarkMode = async () => {
   if (editorView || editorManager) {
     const currentContent = getEditorContent();
 
-    // Save scroll position
+    // Save editor state before destroying
     let scrollTop = 0;
     let scrollLeft = 0;
+    let currentMode = null;
+
     if (editorView) {
       const scroller = editorView.scrollDOM;
       scrollTop = scroller.scrollTop;
       scrollLeft = scroller.scrollLeft;
     } else if (editorManager) {
       scrollTop = editorManager.getScrollPosition();
+      currentMode = editorManager.getMode(); // Preserve current mode for markdown
+    }
+
+    // Temporarily set isRestoringSession to preserve the mode
+    const wasRestoringSession = isRestoringSession;
+    if (currentMode) {
+      isRestoringSession = true;
+      localStorage.setItem(`mode_${currentFilename}`, currentMode);
     }
 
     await initEditor(currentContent, currentFilename);
+
+    // Restore previous session state
+    isRestoringSession = wasRestoringSession;
 
     // Restore scroll position
     setTimeout(() => {
@@ -2235,8 +2305,8 @@ document.getElementById('dark-mode-toggle').addEventListener('click', toggleDark
 
 // Global keyboard listener for quick file creation/search
 document.addEventListener('keydown', async (e) => {
-  // Trigger on alphanumeric keys or forward slash
-  if (!/^[a-zA-Z0-9\/]$/.test(e.key)) {
+  // Trigger on alphanumeric keys, forward slash, or period
+  if (!/^[a-zA-Z0-9\/\.]$/.test(e.key)) {
     return;
   }
 
@@ -2264,7 +2334,12 @@ document.addEventListener('keydown', async (e) => {
 
   // Trigger quick file creation/search with the typed character
   e.preventDefault();
-  await quickFileCreate(e.key);
+  // For period key, just focus the input without pre-filling
+  if (e.key === '.') {
+    await quickFileCreate('');
+  } else {
+    await quickFileCreate(e.key);
+  }
 });
 
 // Initialize dark mode on load
