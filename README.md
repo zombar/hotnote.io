@@ -6,24 +6,17 @@
 
 Minimalist online code editor with local filesystem access.
 
-I ❤️ lean software and dream of the days of MS Edit and Windows 3.11.
+We ❤️ lean software and dream of the days of MS Edit and Windows 3.11.
 
 ## Features
 
 - **Local files** - Direct filesystem access via File System Access API
-
 - **WYSIWYG markdown** - Rich editor for .md files (toggle with source mode)
-
 - **Syntax highlighting** - CodeMirror 6 for JS/TS/Python/Go/Rust/etc
-
 - **Autosave** - Optional 2s interval
-
 - **Temp storage** - Unsaved changes preserved in browser
-
 - **Dark mode** - Toggle light/dark theme
-
 - **PWA** - Install and use offline
-
 - **Shortcuts** - Cmd/Ctrl+S (save), Cmd/Ctrl+Shift+O (folder), Cmd/Ctrl+N (new)
 
 ## Quick Start
