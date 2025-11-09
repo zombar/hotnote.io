@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.13.0](https://github.com/zombar/hotnote.io/compare/v1.12.0...v1.13.0) (2025-11-09)
+
+
+### Features
+
+* added relative path indicator ([#56](https://github.com/zombar/hotnote.io/issues/56)) ([72336e6](https://github.com/zombar/hotnote.io/commit/72336e6df369770bd30e88691c5178602f846fa4))
+* enhanced css animation ([#57](https://github.com/zombar/hotnote.io/issues/57)) ([32e590d](https://github.com/zombar/hotnote.io/commit/32e590d808ae00f4537e63a78b3e53822083c964))
+
+
+### Bug Fixes
+
+* better navbar escape handling ([#54](https://github.com/zombar/hotnote.io/issues/54)) ([535236b](https://github.com/zombar/hotnote.io/commit/535236bb3e50667b57bb2c6cb1d2de0c7ff28e6e))
+
 ## [1.12.0](https://github.com/zombar/hotnote.io/compare/v1.11.1...v1.12.0) (2025-11-09)
 
 
