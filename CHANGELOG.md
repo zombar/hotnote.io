@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/zombar/hotnote.io/compare/v1.2.1...v1.3.0) (2025-11-09)
+
+
+### Features
+
+* rm file picker header and add playwright tests ([e9b91ff](https://github.com/zombar/hotnote.io/commit/e9b91ff65a75eb7401b7ac13a8c56d350ad6841c))
+
+
+### Bug Fixes
+
+* rm retries for docker builds ([f8a9b98](https://github.com/zombar/hotnote.io/commit/f8a9b98a9bd09dbef9fcce89e545a0f1c9e61d32))
+
 ## [1.2.1](https://github.com/zombar/hotnote.io/compare/v1.2.0...v1.2.1) (2025-11-09)
 
 
