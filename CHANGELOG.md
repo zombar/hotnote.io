@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/zombar/hotnote.io/compare/v1.4.0...v1.4.1) (2025-11-09)
+
+
+### Bug Fixes
+
+* linting ([50a1c3e](https://github.com/zombar/hotnote.io/commit/50a1c3ed34d8bdacbfcf804151de2bcc50638599))
+* nginx conf and add config linting ([06de38f](https://github.com/zombar/hotnote.io/commit/06de38fed28ea831cd14a8b9b51c2ed9172d647f))
+
 ## [1.4.0](https://github.com/zombar/hotnote.io/compare/v1.3.0...v1.4.0) (2025-11-09)
 
 
