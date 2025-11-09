@@ -312,18 +312,18 @@ body:not(.preload) .app-logo span {
 
 .nav-controls {
   display: flex;
-  gap: 0.5rem;
+  gap: 0;
   flex-shrink: 0;
 }
 
 .nav-controls button {
-  padding: 0.375rem 0.625rem;
-  min-width: 2rem;
+  padding: 0.3187rem 0.5313rem;
+  min-width: 1.7rem;
 }
 
 #new-btn {
-  padding: 0.375rem 0.625rem;
-  min-width: 2rem;
+  padding: 0.3187rem 0.5313rem;
+  min-width: 1.7rem;
   margin-right: 0.75rem;
   flex-shrink: 0;
 }
@@ -488,7 +488,7 @@ body:not(.preload) .app-logo span {
 
 .actions {
   display: flex;
-  gap: 0.75rem;
+  gap: 0;
   flex-shrink: 0;
   align-items: center;
 }
@@ -501,6 +501,7 @@ body:not(.preload) .app-logo span {
   color: var(--text-secondary);
   cursor: pointer;
   transition: color 0.15s ease;
+  margin-right: 0.75rem;
 }
 
 .autosave-toggle:hover {
@@ -533,8 +534,8 @@ button {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-secondary);
-  padding: 0.375rem 0.875rem;
-  font-size: 0.8125rem;
+  padding: 0.3187rem 0.7438rem;
+  font-size: 0.6906rem;
   font-family: inherit;
   cursor: pointer;
   border-radius: 4px;
@@ -555,6 +556,57 @@ button:active {
 button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* Material Icons styling */
+.material-symbols-outlined {
+  font-size: 1.0625rem;
+  vertical-align: middle;
+  line-height: 1;
+  user-select: none;
+}
+
+/* Flip dark mode icon horizontally */
+#dark-mode-toggle .material-symbols-outlined {
+  transform: scaleX(-1);
+}
+
+/* Button groups with pill shape */
+.nav-controls,
+.actions {
+  display: flex;
+  gap: 0;
+}
+
+.nav-controls button,
+.actions button:not(.hidden) {
+  border-radius: 0;
+  margin-left: -1px;
+}
+
+.nav-controls button:first-child,
+.actions button:not(.hidden):first-of-type {
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+  margin-left: 0;
+}
+
+.nav-controls button:last-child,
+.actions button:not(.hidden):last-of-type {
+  border-top-right-radius: 16px;
+  border-bottom-right-radius: 16px;
+}
+
+/* Handle single button in group */
+.actions button:not(.hidden):only-of-type {
+  border-radius: 16px;
+}
+
+/* Prevent border overlap on hover */
+.nav-controls button:hover,
+.actions button:hover {
+  position: relative;
+  z-index: 1;
 }
 
 /* Version update banner */
@@ -622,8 +674,8 @@ button:disabled {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-secondary);
-  padding: 0.375rem 0.875rem;
-  font-size: 0.8125rem;
+  padding: 0.3187rem 0.7438rem;
+  font-size: 0.6906rem;
   font-family: inherit;
   cursor: pointer;
   border-radius: 4px;
@@ -650,8 +702,8 @@ button:disabled {
 }
 
 .version-banner-btn-secondary {
-  padding: 0.375rem 0.625rem;
-  font-size: 1.25rem;
+  padding: 0.3187rem 0.5313rem;
+  font-size: 1.0625rem;
   line-height: 1;
   min-width: auto;
 }
@@ -777,8 +829,8 @@ button:disabled:hover {
 
 .file-item-delete {
   opacity: 0;
-  padding: 0.125rem 0.375rem;
-  font-size: 0.6875rem;
+  padding: 0.1062rem 0.3187rem;
+  font-size: 0.5844rem;
   border: 1px solid var(--border);
   background: var(--bg-primary);
   color: var(--text-secondary);
@@ -830,8 +882,8 @@ button:disabled:hover {
   background: var(--bg-secondary);
   border: 1px solid var(--brand-pink);
   color: var(--brand-pink);
-  padding: 0.75rem 1.5rem;
-  font-size: 0.875rem;
+  padding: 0.6375rem 1.275rem;
+  font-size: 0.7438rem;
   font-family: inherit;
   cursor: pointer;
   border-radius: 4px;

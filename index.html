@@ -12,6 +12,10 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.json" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+    />
     <link rel="stylesheet" href="/style.css" />
     <script>
       // Apply saved theme before page renders to prevent flash
@@ -39,7 +43,7 @@
         </div>
         <div class="nav-controls" data-testid="nav-controls">
           <button type="button" id="back-btn" data-testid="back-btn" title="Go back" disabled>
-            ←
+            <span class="material-symbols-outlined">arrow_back</span>
           </button>
           <button
             type="button"
@@ -48,7 +52,7 @@
             title="Go forward"
             disabled
           >
-            →
+            <span class="material-symbols-outlined">arrow_forward</span>
           </button>
           <button
             type="button"
@@ -57,11 +61,11 @@
             title="Go up one folder"
             disabled
           >
-            ↑
+            <span class="material-symbols-outlined">arrow_upward</span>
           </button>
         </div>
         <button type="button" id="new-btn" data-testid="new-btn" title="New file (Ctrl/Cmd+N)">
-          □
+          <span class="material-symbols-outlined">note_add</span>
         </button>
         <nav class="breadcrumb" id="breadcrumb" data-testid="breadcrumb">
           <span class="breadcrumb-item">untitled</span>
@@ -77,7 +81,7 @@
             data-testid="dark-mode-toggle"
             title="Switch to dark mode"
           >
-            ○
+            <span class="material-symbols-outlined">dark_mode</span>
           </button>
           <button
             type="button"
@@ -86,7 +90,7 @@
             class="hidden"
             title="Toggle rich markdown editor"
           >
-            rich
+            <span class="material-symbols-outlined">wysiwyg</span>
           </button>
         </div>
       </header>

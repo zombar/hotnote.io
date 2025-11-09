@@ -658,7 +658,8 @@ const updateRichToggleButton = () => {
   if (isMarkdownFile(currentFilename) && editorManager) {
     richToggleBtn.classList.remove('hidden');
     const currentMode = editorManager.getMode();
-    richToggleBtn.textContent = currentMode === 'wysiwyg' ? 'source' : 'rich';
+    const icon = richToggleBtn.querySelector('.material-symbols-outlined');
+    icon.textContent = currentMode === 'wysiwyg' ? 'code' : 'wysiwyg';
     richToggleBtn.title =
       currentMode === 'wysiwyg' ? 'Switch to source mode' : 'Switch to rich mode';
   } else {
@@ -1143,7 +1144,10 @@ const showFilePicker = async (dirHandle) => {
     if (entry.kind === 'file') {
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'file-item-delete';
-      deleteBtn.textContent = 'rm';
+      const deleteIcon = document.createElement('span');
+      deleteIcon.className = 'material-symbols-outlined';
+      deleteIcon.textContent = 'delete';
+      deleteBtn.appendChild(deleteIcon);
       deleteBtn.addEventListener('click', async (e) => {
         e.stopPropagation(); // Prevent opening the file
         await deleteFile(entry);
@@ -2272,18 +2276,19 @@ const newFile = async () => {
 const toggleDarkMode = async () => {
   const html = document.documentElement;
   const darkModeToggle = document.getElementById('dark-mode-toggle');
+  const icon = darkModeToggle.querySelector('.material-symbols-outlined');
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
   const isDark = html.getAttribute('data-theme') === 'dark';
 
   if (isDark) {
     html.removeAttribute('data-theme');
-    darkModeToggle.textContent = '○';
+    icon.textContent = 'dark_mode';
     darkModeToggle.title = 'Switch to dark mode';
     themeColorMeta.setAttribute('content', '#e91e8c');
     localStorage.setItem('theme', 'light');
   } else {
     html.setAttribute('data-theme', 'dark');
-    darkModeToggle.textContent = '●';
+    icon.textContent = 'light_mode';
     darkModeToggle.title = 'Switch to light mode';
     themeColorMeta.setAttribute('content', '#ff2d96');
     localStorage.setItem('theme', 'dark');
@@ -2335,11 +2340,12 @@ const toggleDarkMode = async () => {
 const initDarkMode = () => {
   const savedTheme = localStorage.getItem('theme');
   const darkModeToggle = document.getElementById('dark-mode-toggle');
+  const icon = darkModeToggle.querySelector('.material-symbols-outlined');
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 
   if (savedTheme === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
-    darkModeToggle.textContent = '●';
+    icon.textContent = 'light_mode';
     darkModeToggle.title = 'Switch to light mode';
     themeColorMeta.setAttribute('content', '#ff2d96');
   }
