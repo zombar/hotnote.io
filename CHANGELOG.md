@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.11.0](https://github.com/zombar/hotnote.io/compare/v1.10.0...v1.11.0) (2025-11-09)
+
+
+### Features
+
+* escape key navbar work, big pink carat ([#45](https://github.com/zombar/hotnote.io/issues/45)) ([e0303b2](https://github.com/zombar/hotnote.io/commit/e0303b2ffd1005cf1d642baaeb66d4318a328192))
+
+
+### Bug Fixes
+
+* editor losses focus toggling theme ([#46](https://github.com/zombar/hotnote.io/issues/46)) ([66ee464](https://github.com/zombar/hotnote.io/commit/66ee46413ec4e64c8f2b6614ba37f2d1773b283f))
+
 ## [1.10.0](https://github.com/zombar/hotnote.io/compare/v1.9.0...v1.10.0) (2025-11-09)
 
 
