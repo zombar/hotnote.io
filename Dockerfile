@@ -16,6 +16,9 @@ COPY . .
 RUN npm run build && \
     node -p "require('./package.json').version" > /app/VERSION
 
+# Extract version from package.json
+RUN node -p "require('./package.json').version" > /app/VERSION
+
 # Production stage
 FROM nginx:alpine
 
