@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/zombar/hotnote.io/compare/v1.1.3...v1.2.0) (2025-11-09)
+
+
+### Features
+
+* replaced editor, enriched ux ([#20](https://github.com/zombar/hotnote.io/issues/20)) ([d4b6486](https://github.com/zombar/hotnote.io/commit/d4b6486e649656c9cd0363d2e20bada4da481ca2))
+
 ## [1.1.3](https://github.com/zombar/hotnote.io/compare/v1.1.2...v1.1.3) (2025-11-09)
 
 
