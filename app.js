@@ -1121,7 +1121,10 @@ const showFilePicker = async (dirHandle) => {
 
     const icon = document.createElement('span');
     icon.className = 'file-item-icon';
-    icon.textContent = entry.kind === 'directory' ? '📁' : '📄';
+    const iconSymbol = document.createElement('span');
+    iconSymbol.className = 'material-symbols-outlined';
+    iconSymbol.textContent = entry.kind === 'directory' ? 'folder' : 'description';
+    icon.appendChild(iconSymbol);
 
     const name = document.createElement('span');
     name.className = 'file-item-name';
@@ -2513,8 +2516,14 @@ const showResumePrompt = (folderName) => {
         <div class="welcome-content">
             <p class="welcome-text">Continue where you left off?</p>
             <div class="welcome-actions">
-                <button id="resume-folder-btn" class="welcome-btn">📁 Resume editing ${folderName}</button>
-                <button id="new-folder-btn" class="welcome-btn" style="background: transparent; border: 1px solid var(--border); color: var(--text-secondary);">Open Different Folder</button>
+                <button id="resume-folder-btn" class="welcome-btn">
+                    <span class="material-symbols-outlined">folder_open</span>
+                    Resume editing ${folderName}
+                </button>
+                <button id="new-folder-btn" class="welcome-btn">
+                    <span class="material-symbols-outlined">folder</span>
+                    Open Different Folder
+                </button>
             </div>
         </div>
     `;
@@ -2541,7 +2550,10 @@ const showWelcomePrompt = () => {
             <p class="welcome-text">Welcome to hotnote</p>
             <p class="welcome-text">Open a folder to start browsing and editing files.</p>
             <div class="welcome-actions">
-                <button id="welcome-folder-btn" class="welcome-btn">Open Folder</button>
+                <button id="welcome-folder-btn" class="welcome-btn">
+                    <span class="material-symbols-outlined">folder_open</span>
+                    Open Folder
+                </button>
             </div>
         </div>
     `;
