@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/zombar/hotnote.io/compare/v1.2.0...v1.2.1) (2025-11-09)
+
+
+### Bug Fixes
+
+* deploy stage ([8c5db09](https://github.com/zombar/hotnote.io/commit/8c5db095e0d05789c9f8eeef06eb976daa5d9ea2))
+
 ## [1.2.0](https://github.com/zombar/hotnote.io/compare/v1.1.3...v1.2.0) (2025-11-09)
 
 
