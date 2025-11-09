@@ -1207,6 +1207,7 @@ button:disabled:hover {
   outline: none;
   min-height: 100%;
   padding: 4rem 0 7rem;
+  box-sizing: content-box;
 }
 
 .milkdown .ProseMirror-focused {
