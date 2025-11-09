@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.9.0](https://github.com/zombar/hotnote.io/compare/v1.8.0...v1.9.0) (2025-11-09)
+
+
+### Features
+
+* pretty file sizes and deletes with undo ([#36](https://github.com/zombar/hotnote.io/issues/36)) ([c5be05b](https://github.com/zombar/hotnote.io/commit/c5be05bcfc1796452d4814d295dc24b9ca4060bf))
+* pretty icons for the file picker ([#38](https://github.com/zombar/hotnote.io/issues/38)) ([37b1c02](https://github.com/zombar/hotnote.io/commit/37b1c02627ca7e4f7649f0770ef0004f0d87bb60))
+* resizable file picker ([b8602ac](https://github.com/zombar/hotnote.io/commit/b8602ac8e3505c0349c4d4cae66d0ea066540566))
+
 ## [1.8.0](https://github.com/zombar/hotnote.io/compare/v1.7.0...v1.8.0) (2025-11-09)
 
 
