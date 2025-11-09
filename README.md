@@ -11,18 +11,25 @@ We ❤️ lean software and dream of the days of MS Edit and Windows 3.11.
 ## Features
 
 - **Local files** - Direct filesystem access via File System Access API
+
 - **WYSIWYG markdown** - Rich editor for .md files (toggle with source mode)
+
 - **Syntax highlighting** - CodeMirror 6 for JS/TS/Python/Go/Rust/etc
+
 - **Autosave** - Optional 2s interval
+
 - **Temp storage** - Unsaved changes preserved in browser
+
 - **Dark mode** - Toggle light/dark theme
+
 - **PWA** - Install and use offline
+
 - **Shortcuts** - Cmd/Ctrl+S (save), Cmd/Ctrl+Shift+O (folder), Cmd/Ctrl+N (new)
 
 ## Quick Start
 
 ```bash
-npm install
+make init     # first-time setup: install brew tools & pre-commit hooks
 npm run dev
 ```
 
@@ -38,25 +45,11 @@ make logs  # view logs
 
 ```bash
 make help      # show all commands
+make init      # install dev tools (brew) & set up git hooks
 make build     # docker build (no cache)
 make test      # run all tests + validation
 make validate  # lint + format checks
-make clean     # remove containers/volumes
-```
-
-## Build
-
-```bash
-npm run build    # → dist/
-npm run preview  # test build
-```
-
-## Test
-
-```bash
-npm test              # watch mode
-npm test -- --run     # single run
-npm run test:coverage # coverage report
+make coverage  # run tests with coverage report
 ```
 
 **266 tests** covering core functionality, file operations, navigation, and edge cases.

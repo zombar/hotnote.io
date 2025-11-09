@@ -1,4 +1,4 @@
-.PHONY: help dev prod build up down logs clean restart test lint format lint-html lint-css check-unused check-size validate
+.PHONY: help init dev prod build up down logs clean restart test coverage lint format lint-html lint-css check-unused check-size validate
 
 # Default target
 .DEFAULT_GOAL := help
@@ -10,6 +10,15 @@ RESET := \033[0m
 help: ## Show this help message
 	@echo "$(CYAN)Available commands:$(RESET)"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-15s$(RESET) %s\n", $$1, $$2}'
+
+init: ## Install dev tools (brew packages) and set up pre-commit hooks
+	@echo "$(CYAN)Installing development tools$(RESET)"
+	@command -v brew >/dev/null 2>&1 || { echo "Error: Homebrew not installed. Visit https://brew.sh"; exit 1; }
+	@echo "$(CYAN)Installing brew packages$(RESET)"
+	@brew install node yamllint
+	@echo "$(CYAN)Installing npm dependencies and setting up git hooks$(RESET)"
+	@npm install
+	@echo "$(CYAN)✓ Development environment ready!$(RESET)"
 
 dev: ## Start development server
 
@@ -43,6 +52,10 @@ test: ## Run tests and all validation checks
 	@npm run test:infra
 	@echo "$(CYAN)Running validation checks$(RESET)"
 	@$(MAKE) validate
+
+coverage: ## Run tests with coverage report
+	@echo "$(CYAN)Running tests with coverage$(RESET)"
+	@npm run test:coverage
 
 lint: ## Run ESLint
 	@echo "$(CYAN)Running ESLint$(RESET)"
