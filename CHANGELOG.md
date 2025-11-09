@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0](https://github.com/zombar/hotnote.io/compare/v1.5.0...v1.6.0) (2025-11-09)
+
+
+### Features
+
+* beautify the nav bar a bit ([99831f7](https://github.com/zombar/hotnote.io/commit/99831f7564b43b78cd904f8d517c903d4ccb8af4))
+* surface version info ([#28](https://github.com/zombar/hotnote.io/issues/28)) ([fd2740f](https://github.com/zombar/hotnote.io/commit/fd2740fea92949ac56d1e9030b2f96bf42928b43))
+
 ## [1.5.0](https://github.com/zombar/hotnote.io/compare/v1.4.1...v1.5.0) (2025-11-09)
 
 
