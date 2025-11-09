@@ -2986,7 +2986,7 @@ document.getElementById('dark-mode-toggle').addEventListener('click', () => {
   toggleDarkMode();
 });
 
-// Header click to toggle file picker
+// Header click to show file picker
 document.querySelector('header').addEventListener('click', (e) => {
   // Only handle if a folder is currently open
   if (!currentDirHandle) return;
@@ -2996,17 +2996,9 @@ document.querySelector('header').addEventListener('click', (e) => {
     return;
   }
 
-  const picker = document.getElementById('file-picker');
-  if (!picker) return;
-
-  // Toggle the file picker
-  if (picker.classList.contains('hidden')) {
-    // Open the file picker
-    showFilePicker(currentDirHandle);
-  } else {
-    // Close the file picker
-    hideFilePicker();
-  }
+  // Show the file picker (same behavior as clicking filename)
+  focusManager.saveFocusState();
+  showFilePicker(currentDirHandle);
 });
 
 // Browser back/forward button listener

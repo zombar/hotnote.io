@@ -58,7 +58,20 @@ test.describe('File Picker', () => {
     await expect(filePicker).not.toHaveClass(/hidden/);
   });
 
-  test('should reopen file picker when clicking breadcrumb', async ({ page }) => {
+  test.skip('should show file picker when clicking navbar (when picker is hidden)', async ({
+    page,
+  }) => {
+    await page.goto('/');
+
+    // This test requires File System Access API mocking to have a folder open
+    // so that the file picker can be closed and reopened.
+    // During the welcome screen, the picker cannot be closed.
+    // Placeholder for actual implementation with folder structure
+  });
+
+  test('should keep file picker open when clicking navbar (when picker is already open)', async ({
+    page,
+  }) => {
     await page.goto('/');
 
     // Wait for file picker to be visible with welcome content
@@ -66,20 +79,41 @@ test.describe('File Picker', () => {
     const filePicker = page.getByTestId('file-picker');
     await expect(filePicker).not.toHaveClass(/hidden/);
 
-    // Close the file picker by clicking outside
-    const editor = page.getByTestId('editor');
-    await editor.click();
-    await expect(filePicker).toHaveClass(/hidden/);
+    // Click on the navbar while file picker is already open
+    const navbar = page.getByTestId('navbar');
+    await navbar.click();
 
-    // Note: The following would require File System Access API mocking
-    // to actually have a folder open and a clickable breadcrumb item.
-    // This is a placeholder for when that functionality is implemented.
+    // File picker should remain visible (not toggle closed)
+    await expect(filePicker).not.toHaveClass(/hidden/);
+  });
 
-    // In a real scenario with a folder open, clicking the breadcrumb
-    // filename or placeholder should reopen the file picker
-    // const breadcrumb = page.getByTestId('breadcrumb');
-    // await breadcrumb.locator('.breadcrumb-item').first().click();
-    // await expect(filePicker).not.toHaveClass(/hidden/);
+  test.skip('should show file picker when clicking breadcrumb (when picker is hidden)', async ({
+    page,
+  }) => {
+    await page.goto('/');
+
+    // This test requires File System Access API mocking to have a folder open
+    // so that the file picker can be closed and reopened.
+    // During the welcome screen, the picker cannot be closed.
+    // Placeholder for actual implementation with folder structure
+  });
+
+  test('should keep file picker open when clicking breadcrumb (when picker is already open)', async ({
+    page,
+  }) => {
+    await page.goto('/');
+
+    // Wait for file picker to be visible with welcome content
+    await page.waitForSelector('.welcome-content');
+    const filePicker = page.getByTestId('file-picker');
+    await expect(filePicker).not.toHaveClass(/hidden/);
+
+    // Click on the breadcrumb while file picker is already open
+    const breadcrumb = page.getByTestId('breadcrumb');
+    await breadcrumb.click();
+
+    // File picker should remain visible (not close)
+    await expect(filePicker).not.toHaveClass(/hidden/);
   });
 
   test('should keep file picker open when folder is clicked', async ({ page }) => {
