@@ -1,5 +1,20 @@
 import { EditorManager } from './src/editors/editor-manager.js';
-import { FocusManager } from './src/focus-manager.js';
+import { debounce } from './src/utils/helpers.js';
+import { appState } from './src/state/app-state.js';
+import {
+  getFilePathKey as getFilePathKeyCore,
+  saveTempChanges as saveTempChangesCore,
+  loadTempChanges as loadTempChangesCore,
+  clearTempChanges as clearTempChangesCore,
+  hasTempChanges as hasTempChangesCore,
+} from './core.js';
+import {
+  loadSessionFile,
+  saveSessionFile,
+  createEmptySession,
+  createDebouncedSaveEditorState,
+  initSessionManager,
+} from './src/storage/session-manager.js';
 import {
   EditorView,
   keymap,
@@ -120,71 +135,8 @@ const FileSystemAdapter = {
   },
 };
 
-// Session Management (.HN file persistence)
-const createSessionFileName = (_dirHandle) => {
-  return '.session_properties.HN';
-};
-
-const loadSessionFile = async (dirHandle) => {
-  try {
-    const sessionFileName = createSessionFileName(dirHandle);
-    const sessionFileHandle = await dirHandle.getFileHandle(sessionFileName, { create: false });
-    const sessionContent = await FileSystemAdapter.readFile(sessionFileHandle);
-    return JSON.parse(sessionContent);
-  } catch {
-    // File doesn't exist or invalid JSON - return null
-    return null;
-  }
-};
-
-const saveSessionFile = async (dirHandle, sessionData) => {
-  try {
-    const sessionFileName = createSessionFileName(dirHandle);
-    const sessionFileHandle = await dirHandle.getFileHandle(sessionFileName, { create: true });
-    sessionData.lastModified = Date.now();
-    const content = JSON.stringify(sessionData, null, 2);
-    await FileSystemAdapter.writeFile(sessionFileHandle, content);
-  } catch (err) {
-    console.error('Error saving session file:', err);
-  }
-};
-
-const createEmptySession = (folderName) => {
-  return {
-    version: '1.0',
-    folderName: folderName,
-    lastModified: Date.now(),
-    session: {
-      lastOpenFile: null,
-    },
-    comments: [],
-  };
-};
-
-// App state
-let currentFileHandle = null;
-let currentFilename = 'untitled';
-let currentDirHandle = null;
-let rootDirHandle = null; // The initially opened directory (for session file)
-let currentPath = []; // Array of {name, handle} objects
-let editorManager = null; // For markdown files (handles WYSIWYG/source switching)
-let editorView = null; // For non-markdown files (direct CodeMirror)
-const focusManager = new FocusManager(); // Centralized focus management
-let isRestoringSession = false; // Track if we're currently restoring from session
-let lastRestorationTime = 0; // Track when we last restored state to prevent premature saves
-
-// Navigation history
-let navigationHistory = [];
-let historyIndex = -1;
-let isPopStateNavigation = false; // Prevent duplicate history entries during browser back/forward
-
-// Autosave
-let autosaveEnabled = true;
-let autosaveInterval = null;
-let isDirty = false;
-
-// Original file content (for detecting undo to original state)
-let originalContent = '';
+// Initialize session manager with FileSystemAdapter
+initSessionManager(FileSystemAdapter);
 
 // File polling and synchronization
 let lastKnownModified = null; // Timestamp when file was last loaded/saved
@@ -193,48 +145,41 @@ let lastUserActivityTime = Date.now(); // Timestamp of last user interaction
 let filePollingInterval = null; // Interval ID for file polling
 let isPollingPaused = false; // Flag to pause polling during file picker operations
 
-// Temp storage for unsaved changes
-const TEMP_STORAGE_PREFIX = 'hotnote_temp_';
-
-// Get file path key for storage
+// Temp storage wrappers using core.js functions
 const getFilePathKey = () => {
-  if (!currentFileHandle) return null;
-  const pathParts = currentPath.map((p) => p.name);
-  pathParts.push(currentFilename);
-  return pathParts.join('/');
+  if (!appState.appState.currentFileHandle) return null;
+  return getFilePathKeyCore(appState.appState.currentPath, appState.appState.currentFilename);
 };
 
 // Get relative file path (excluding root folder name) for session storage
 const getRelativeFilePath = () => {
-  if (!currentFileHandle) return null;
+  if (!appState.appState.currentFileHandle) return null;
   // Skip the first element (root folder) since we're already inside it when loading
-  const pathParts = currentPath.slice(1).map((p) => p.name);
-  pathParts.push(currentFilename);
+  const pathParts = appState.appState.currentPath.slice(1).map((p) => p.name);
+  pathParts.push(appState.appState.currentFilename);
   return pathParts.join('/');
 };
 
-// Save temp changes
+// Save temp changes wrapper
 const saveTempChanges = () => {
   const key = getFilePathKey();
-  if (!key || !isDirty) return;
+  if (!key || !appState.appState.isDirty) return;
 
   const content = getEditorContent();
-  localStorage.setItem(TEMP_STORAGE_PREFIX + key, content);
+  saveTempChangesCore(key, content);
 };
 
-// Load temp changes
+// Wrapper functions for core temp storage
 const loadTempChanges = (key) => {
-  return localStorage.getItem(TEMP_STORAGE_PREFIX + key);
+  return loadTempChangesCore(key);
 };
 
-// Clear temp changes
 const clearTempChanges = (key) => {
-  localStorage.removeItem(TEMP_STORAGE_PREFIX + key);
+  clearTempChangesCore(key);
 };
 
-// Check if file has temp changes
 const hasTempChanges = (key) => {
-  return localStorage.getItem(TEMP_STORAGE_PREFIX + key) !== null;
+  return hasTempChangesCore(key);
 };
 
 // Custom syntax highlighting using brand colors (light mode - darker muted)
@@ -357,10 +302,10 @@ const isMarkdownFile = (filename) => {
 
 // Helper: Get current editor content
 const getEditorContent = () => {
-  if (editorManager) {
-    return editorManager.getContent();
-  } else if (editorView) {
-    return editorView.state.doc.toString();
+  if (appState.editorManager) {
+    return appState.editorManager.getContent();
+  } else if (appState.editorView) {
+    return appState.editorView.state.doc.toString();
   }
   return '';
 };
@@ -368,16 +313,16 @@ const getEditorContent = () => {
 // Initialize editor (EditorManager for markdown, CodeMirror for other files)
 const initEditor = async (initialContent = '', filename = 'untitled') => {
   // Store original content for undo detection
-  originalContent = initialContent;
+  appState.originalContent = initialContent;
 
   // Clear old editors
-  if (editorManager) {
-    editorManager.destroy();
-    editorManager = null;
+  if (appState.editorManager) {
+    appState.editorManager.destroy();
+    appState.editorManager = null;
   }
-  if (editorView) {
-    editorView.destroy();
-    editorView = null;
+  if (appState.editorView) {
+    appState.editorView.destroy();
+    appState.editorView = null;
   }
 
   const editorContainer = document.getElementById('editor');
@@ -389,9 +334,9 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
     updateUserActivity();
     lastModifiedLocal = Date.now();
 
-    if (content === originalContent) {
-      if (isDirty) {
-        isDirty = false;
+    if (content === appState.originalContent) {
+      if (appState.isDirty) {
+        appState.isDirty = false;
         const key = getFilePathKey();
         if (key) {
           clearTempChanges(key);
@@ -399,8 +344,8 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
         updateBreadcrumb();
       }
     } else {
-      if (!isDirty) {
-        isDirty = true;
+      if (!appState.isDirty) {
+        appState.isDirty = true;
         updateBreadcrumb();
       }
     }
@@ -411,18 +356,18 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
   if (isMarkdownFile(filename)) {
     // Use EditorManager for markdown files
     // Mode will be determined by session restore or default to 'wysiwyg'
-    const initialMode = isRestoringSession
+    const initialMode = appState.isRestoringSession
       ? localStorage.getItem(`mode_${filename}`) || 'wysiwyg'
       : 'wysiwyg';
     console.log('[Editor] Initializing EditorManager for markdown. Initial mode:', initialMode);
 
-    editorManager = new EditorManager(
+    appState.editorManager = new EditorManager(
       editorContainer,
       initialMode,
       initialContent,
       handleContentChange
     );
-    await editorManager.ready();
+    await appState.editorManager.ready();
     console.log('[Editor] EditorManager initialized');
   } else {
     // Use CodeMirror directly for non-markdown files
@@ -430,11 +375,11 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
     await initCodeMirrorEditor(initialContent, filename, handleContentChange);
   }
 
-  isDirty = false;
+  appState.isDirty = false;
   updateRichToggleButton();
 
   // Register editors with focus manager
-  focusManager.setEditors(editorManager, editorView);
+  appState.focusManager.setEditors(appState.editorManager, appState.editorView);
 };
 
 // Initialize CodeMirror editor
@@ -448,7 +393,7 @@ const initCodeMirrorEditor = async (
   const highlightStyle = isDark ? brandHighlightStyleDark : brandHighlightStyle;
 
   // Check if we have a file open
-  const hasFileOpen = currentFileHandle !== null;
+  const hasFileOpen = appState.currentFileHandle !== null;
 
   const extensions = [
     lineNumbers(),
@@ -495,7 +440,7 @@ const initCodeMirrorEditor = async (
         key: 'Mod-n',
         run: () => {
           // Only allow new file if workspace is open
-          if (currentDirHandle) {
+          if (appState.currentDirHandle) {
             newFile();
           }
           return true;
@@ -541,14 +486,14 @@ const initCodeMirrorEditor = async (
     extensions,
   });
 
-  editorView = new EditorView({
+  appState.editorView = new EditorView({
     state: startState,
     parent: document.getElementById('editor'),
   });
 
   // Add scroll listener to save editor state
-  if (editorView && editorView.scrollDOM) {
-    editorView.scrollDOM.addEventListener('scroll', debouncedSaveEditorState);
+  if (appState.editorView && appState.editorView.scrollDOM) {
+    appState.editorView.scrollDOM.addEventListener('scroll', debouncedSaveEditorState);
   }
 };
 
@@ -559,7 +504,7 @@ let initialCollapseScheduled = false;
 // Update logo state based on whether a folder or file is open
 const updateLogoState = () => {
   const logo = document.querySelector('.app-logo');
-  if (logo && (currentFileHandle || currentDirHandle)) {
+  if (logo && (appState.currentFileHandle || appState.currentDirHandle)) {
     // Check if this is the first time (initial load)
     const isFirstLoad = !logo.dataset.hoverSetup;
 
@@ -670,12 +615,12 @@ const updateBreadcrumb = () => {
   const breadcrumb = document.getElementById('breadcrumb');
   breadcrumb.innerHTML = '';
 
-  if (currentPath.length === 0) {
+  if (appState.currentPath.length === 0) {
     // No folder opened
     const item = document.createElement('span');
     item.className = 'breadcrumb-item';
-    item.textContent = currentFilename;
-    if (isDirty) {
+    item.textContent = appState.currentFilename;
+    if (appState.isDirty) {
       item.classList.add('has-changes');
     }
     // Make breadcrumb clickable to open folder
@@ -690,11 +635,11 @@ const updateBreadcrumb = () => {
     const MAX_VISIBLE_ITEMS = 7; // Maximum items to show before abbreviating
     const ITEMS_TO_SHOW_AT_END = 5; // How many items to show at the end after ellipsis
 
-    if (currentPath.length > MAX_VISIBLE_ITEMS) {
+    if (appState.currentPath.length > MAX_VISIBLE_ITEMS) {
       // Show first item
       const firstItem = document.createElement('span');
       firstItem.className = 'breadcrumb-item';
-      firstItem.textContent = currentPath[0].name;
+      firstItem.textContent = appState.currentPath[0].name;
       firstItem.dataset.index = 0;
       firstItem.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -709,9 +654,9 @@ const updateBreadcrumb = () => {
       breadcrumb.appendChild(ellipsis);
 
       // Show last N items
-      const startIndex = currentPath.length - ITEMS_TO_SHOW_AT_END;
-      for (let i = startIndex; i < currentPath.length; i++) {
-        const segment = currentPath[i];
+      const startIndex = appState.currentPath.length - ITEMS_TO_SHOW_AT_END;
+      for (let i = startIndex; i < appState.currentPath.length; i++) {
+        const segment = appState.currentPath[i];
         const item = document.createElement('span');
         item.className = 'breadcrumb-item';
         item.textContent = segment.name;
@@ -724,7 +669,7 @@ const updateBreadcrumb = () => {
       }
     } else {
       // Show full path
-      currentPath.forEach((segment, index) => {
+      appState.currentPath.forEach((segment, index) => {
         const item = document.createElement('span');
         item.className = 'breadcrumb-item';
         item.textContent = segment.name;
@@ -741,19 +686,19 @@ const updateBreadcrumb = () => {
     }
 
     // Add current file if opened, or placeholder if no file
-    if (currentFileHandle) {
+    if (appState.currentFileHandle) {
       const fileItem = document.createElement('span');
       fileItem.className = 'breadcrumb-item';
-      if (isDirty) {
+      if (appState.isDirty) {
         fileItem.classList.add('has-changes');
       }
-      fileItem.textContent = currentFilename;
+      fileItem.textContent = appState.currentFilename;
       fileItem.style.cursor = 'pointer';
       fileItem.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (currentDirHandle) {
-          focusManager.saveFocusState();
-          showFilePicker(currentDirHandle);
+        if (appState.currentDirHandle) {
+          appState.focusManager.saveFocusState();
+          showFilePicker(appState.currentDirHandle);
         }
       });
       breadcrumb.appendChild(fileItem);
@@ -765,9 +710,9 @@ const updateBreadcrumb = () => {
       placeholder.style.cursor = 'pointer';
       placeholder.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (currentDirHandle) {
-          focusManager.saveFocusState();
-          showFilePicker(currentDirHandle);
+        if (appState.currentDirHandle) {
+          appState.focusManager.saveFocusState();
+          showFilePicker(appState.currentDirHandle);
         }
       });
       breadcrumb.appendChild(placeholder);
@@ -775,12 +720,14 @@ const updateBreadcrumb = () => {
   }
 
   // Set browser tab title: filename (folder/path) • - hotnote
-  if (currentFileHandle) {
+  if (appState.currentFileHandle) {
     const folderPath =
-      currentPath.length > 0 ? ` (${currentPath.map((p) => p.name).join('/')})` : '';
-    document.title = `${currentFilename}${folderPath}${isDirty ? ' •' : ''} - hotnote`;
-  } else if (currentPath.length > 0) {
-    document.title = `(${currentPath.map((p) => p.name).join('/')}) - hotnote`;
+      appState.currentPath.length > 0
+        ? ` (${appState.currentPath.map((p) => p.name).join('/')})`
+        : '';
+    document.title = `${appState.currentFilename}${folderPath}${appState.isDirty ? ' •' : ''} - hotnote`;
+  } else if (appState.currentPath.length > 0) {
+    document.title = `(${appState.currentPath.map((p) => p.name).join('/')}) - hotnote`;
   } else {
     document.title = 'hotnote';
   }
@@ -790,9 +737,9 @@ const updateBreadcrumb = () => {
 const updateRichToggleButton = () => {
   const richToggleBtn = document.getElementById('rich-toggle-btn');
 
-  if (isMarkdownFile(currentFilename) && editorManager) {
+  if (isMarkdownFile(appState.currentFilename) && appState.editorManager) {
     richToggleBtn.classList.remove('hidden');
-    const currentMode = editorManager.getMode();
+    const currentMode = appState.editorManager.getMode();
     const icon = richToggleBtn.querySelector('.material-symbols-outlined');
     icon.textContent = currentMode === 'wysiwyg' ? 'code' : 'wysiwyg';
     richToggleBtn.title =
@@ -804,76 +751,76 @@ const updateRichToggleButton = () => {
 
 // Toggle between rich and source mode for markdown files
 const toggleRichMode = async () => {
-  if (!isMarkdownFile(currentFilename) || !editorManager) {
+  if (!isMarkdownFile(appState.currentFilename) || !appState.editorManager) {
     console.log('[RichMode] Not a markdown file or no editor manager, skipping toggle');
     return;
   }
 
   console.log('[RichMode] Toggling mode via EditorManager');
-  await editorManager.toggleMode();
+  await appState.editorManager.toggleMode();
 
   // Save mode preference to localStorage
-  const newMode = editorManager.getMode();
-  localStorage.setItem(`mode_${currentFilename}`, newMode);
+  const newMode = appState.editorManager.getMode();
+  localStorage.setItem(`mode_${appState.currentFilename}`, newMode);
 
   updateRichToggleButton();
 };
 
 // Navigate to a specific path index (breadcrumb click)
 const navigateToPathIndex = async (index) => {
-  if (index >= currentPath.length) return;
+  if (index >= appState.currentPath.length) return;
 
   // Save focus state before navigation
-  focusManager.saveFocusState();
+  appState.focusManager.saveFocusState();
 
   // Save temp changes if file is dirty
-  if (isDirty && currentFileHandle) {
+  if (appState.isDirty && appState.currentFileHandle) {
     saveTempChanges();
   }
 
   // Truncate path to the clicked index
-  currentPath = currentPath.slice(0, index + 1);
-  currentDirHandle = currentPath[currentPath.length - 1].handle;
+  appState.currentPath = appState.currentPath.slice(0, index + 1);
+  appState.currentDirHandle = appState.currentPath[appState.currentPath.length - 1].handle;
 
   // Don't close the current file - keep it open while showing picker
   // Note: Don't add to history - breadcrumb navigation is just for browsing
 
   // Show file picker for this directory
-  await showFilePicker(currentDirHandle);
+  await showFilePicker(appState.currentDirHandle);
   updateBreadcrumb();
 };
 
 // Add current state to navigation history
 const addToHistory = () => {
   // Remove any forward history when navigating to a new location
-  navigationHistory = navigationHistory.slice(0, historyIndex + 1);
+  appState.navigationHistory = appState.navigationHistory.slice(0, appState.historyIndex + 1);
 
   // Capture current editor state if we have a file open
   let editorState = null;
-  if (currentFileHandle) {
-    editorState = focusManager._captureEditorState();
+  if (appState.currentFileHandle) {
+    editorState = appState.focusManager._captureEditorState();
   }
 
-  navigationHistory.push({
-    path: [...currentPath],
-    dirHandle: currentDirHandle,
-    fileHandle: currentFileHandle,
-    filename: currentFilename,
+  appState.navigationHistory.push({
+    path: [...appState.currentPath],
+    dirHandle: appState.currentDirHandle,
+    fileHandle: appState.currentFileHandle,
+    filename: appState.currentFilename,
     editorState: editorState, // Store cursor and scroll position
   });
 
-  historyIndex = navigationHistory.length - 1;
+  appState.historyIndex = appState.navigationHistory.length - 1;
   updateNavigationButtons();
 
   // Sync with browser history (unless we're navigating via popstate)
-  if (!isPopStateNavigation) {
+  if (!appState.isPopStateNavigation) {
     const urlPath = pathToUrlParam();
     const url = urlPath ? `?localdir=${urlPath}` : window.location.pathname;
-    const title = currentFilename || 'hotnote';
+    const title = appState.currentFilename || 'hotnote';
 
     window.history.pushState(
       {
-        historyIndex: historyIndex,
+        historyIndex: appState.historyIndex,
         appHistory: true,
       },
       title,
@@ -884,15 +831,16 @@ const addToHistory = () => {
 
 // Update back/forward button states
 const updateNavigationButtons = () => {
-  document.getElementById('back-btn').disabled = historyIndex <= 0;
-  document.getElementById('forward-btn').disabled = historyIndex >= navigationHistory.length - 1;
-  document.getElementById('folder-up-btn').disabled = currentPath.length === 0;
+  document.getElementById('back-btn').disabled = appState.historyIndex <= 0;
+  document.getElementById('forward-btn').disabled =
+    appState.historyIndex >= appState.navigationHistory.length - 1;
+  document.getElementById('folder-up-btn').disabled = appState.currentPath.length === 0;
 };
 
 // Update new file button state based on workspace
 const updateNewButtonState = () => {
   const newBtn = document.getElementById('new-btn');
-  const hasWorkspace = currentDirHandle !== null;
+  const hasWorkspace = appState.currentDirHandle !== null;
 
   newBtn.disabled = !hasWorkspace;
 
@@ -906,17 +854,17 @@ const updateNewButtonState = () => {
 
 // Convert current path and filename to URL parameter
 const pathToUrlParam = () => {
-  if (currentPath.length === 0) {
+  if (appState.currentPath.length === 0) {
     return '';
   }
 
-  // Build path from currentPath array
-  const pathParts = currentPath.map((p) => encodeURIComponent(p.name));
+  // Build path from appState.currentPath array
+  const pathParts = appState.currentPath.map((p) => encodeURIComponent(p.name));
   let fullPath = './' + pathParts.join('/');
 
   // Add filename if we have one
-  if (currentFilename) {
-    fullPath += '/' + encodeURIComponent(currentFilename);
+  if (appState.currentFilename) {
+    fullPath += '/' + encodeURIComponent(appState.currentFilename);
   }
 
   return fullPath;
@@ -941,24 +889,24 @@ const urlParamToPath = (param) => {
 
 // Navigate back
 const goBack = async () => {
-  if (historyIndex <= 0) return;
+  if (appState.historyIndex <= 0) return;
 
   // Save temp changes if file is dirty
-  if (isDirty && currentFileHandle) {
+  if (appState.isDirty && appState.currentFileHandle) {
     saveTempChanges();
   }
 
-  historyIndex--;
-  const state = navigationHistory[historyIndex];
+  appState.historyIndex--;
+  const state = appState.navigationHistory[appState.historyIndex];
 
-  currentPath = [...state.path];
-  currentDirHandle = state.dirHandle;
-  currentFileHandle = state.fileHandle;
-  currentFilename = state.filename;
+  appState.currentPath = [...state.path];
+  appState.currentDirHandle = state.dirHandle;
+  appState.currentFileHandle = state.fileHandle;
+  appState.currentFilename = state.filename;
 
-  if (currentFileHandle) {
-    const file = await currentFileHandle.getFile();
-    currentFilename = file.name;
+  if (appState.currentFileHandle) {
+    const file = await appState.currentFileHandle.getFile();
+    appState.currentFilename = file.name;
 
     // Load original file content from disk
     const fileContent = await file.text();
@@ -967,28 +915,28 @@ const goBack = async () => {
     const pathKey = getFilePathKey();
     const tempContent = loadTempChanges(pathKey);
 
-    // Initialize with file content (sets originalContent)
-    await initEditor(fileContent, currentFilename);
+    // Initialize with file content (sets appState.originalContent)
+    await initEditor(fileContent, appState.currentFilename);
 
     // If we have temp changes, apply them
     if (tempContent !== null) {
-      if (editorView) {
-        editorView.dispatch({
-          changes: { from: 0, to: editorView.state.doc.length, insert: tempContent },
+      if (appState.editorView) {
+        appState.editorView.dispatch({
+          changes: { from: 0, to: appState.editorView.state.doc.length, insert: tempContent },
         });
-      } else if (editorManager && isMarkdownFile(currentFilename)) {
-        await initEditor(tempContent, currentFilename);
+      } else if (appState.editorManager && isMarkdownFile(appState.currentFilename)) {
+        await initEditor(tempContent, appState.currentFilename);
       }
-      isDirty = true;
+      appState.isDirty = true;
     }
   } else {
     await initEditor('', 'untitled');
   }
 
-  if (currentFileHandle) {
+  if (appState.currentFileHandle) {
     hideFilePicker();
-  } else if (currentDirHandle) {
-    await showFilePicker(currentDirHandle);
+  } else if (appState.currentDirHandle) {
+    await showFilePicker(appState.currentDirHandle);
   }
 
   updateBreadcrumb();
@@ -1000,17 +948,17 @@ const goBack = async () => {
     // Use requestAnimationFrame to ensure editor is fully initialized
 
     requestAnimationFrame(() => {
-      focusManager._restoreEditorState(state.editorState);
+      appState.focusManager._restoreEditorState(state.editorState);
     });
   }
 
   // Update URL to match current state
   const urlPath = pathToUrlParam();
   const url = urlPath ? `?localdir=${urlPath}` : window.location.pathname;
-  const title = currentFilename || 'hotnote';
+  const title = appState.currentFilename || 'hotnote';
   window.history.replaceState(
     {
-      historyIndex: historyIndex,
+      historyIndex: appState.historyIndex,
       appHistory: true,
     },
     title,
@@ -1020,24 +968,24 @@ const goBack = async () => {
 
 // Navigate forward
 const goForward = async () => {
-  if (historyIndex >= navigationHistory.length - 1) return;
+  if (appState.historyIndex >= appState.navigationHistory.length - 1) return;
 
   // Save temp changes if file is dirty
-  if (isDirty && currentFileHandle) {
+  if (appState.isDirty && appState.currentFileHandle) {
     saveTempChanges();
   }
 
-  historyIndex++;
-  const state = navigationHistory[historyIndex];
+  appState.historyIndex++;
+  const state = appState.navigationHistory[appState.historyIndex];
 
-  currentPath = [...state.path];
-  currentDirHandle = state.dirHandle;
-  currentFileHandle = state.fileHandle;
-  currentFilename = state.filename;
+  appState.currentPath = [...state.path];
+  appState.currentDirHandle = state.dirHandle;
+  appState.currentFileHandle = state.fileHandle;
+  appState.currentFilename = state.filename;
 
-  if (currentFileHandle) {
-    const file = await currentFileHandle.getFile();
-    currentFilename = file.name;
+  if (appState.currentFileHandle) {
+    const file = await appState.currentFileHandle.getFile();
+    appState.currentFilename = file.name;
 
     // Load original file content from disk
     const fileContent = await file.text();
@@ -1046,28 +994,28 @@ const goForward = async () => {
     const pathKey = getFilePathKey();
     const tempContent = loadTempChanges(pathKey);
 
-    // Initialize with file content (sets originalContent)
-    await initEditor(fileContent, currentFilename);
+    // Initialize with file content (sets appState.originalContent)
+    await initEditor(fileContent, appState.currentFilename);
 
     // If we have temp changes, apply them
     if (tempContent !== null) {
-      if (editorView) {
-        editorView.dispatch({
-          changes: { from: 0, to: editorView.state.doc.length, insert: tempContent },
+      if (appState.editorView) {
+        appState.editorView.dispatch({
+          changes: { from: 0, to: appState.editorView.state.doc.length, insert: tempContent },
         });
-      } else if (editorManager && isMarkdownFile(currentFilename)) {
-        await initEditor(tempContent, currentFilename);
+      } else if (appState.editorManager && isMarkdownFile(appState.currentFilename)) {
+        await initEditor(tempContent, appState.currentFilename);
       }
-      isDirty = true;
+      appState.isDirty = true;
     }
   } else {
     await initEditor('', 'untitled');
   }
 
-  if (currentFileHandle) {
+  if (appState.currentFileHandle) {
     hideFilePicker();
-  } else if (currentDirHandle) {
-    await showFilePicker(currentDirHandle);
+  } else if (appState.currentDirHandle) {
+    await showFilePicker(appState.currentDirHandle);
   }
 
   updateBreadcrumb();
@@ -1079,17 +1027,17 @@ const goForward = async () => {
     // Use requestAnimationFrame to ensure editor is fully initialized
 
     requestAnimationFrame(() => {
-      focusManager._restoreEditorState(state.editorState);
+      appState.focusManager._restoreEditorState(state.editorState);
     });
   }
 
   // Update URL to match current state
   const urlPath = pathToUrlParam();
   const url = urlPath ? `?localdir=${urlPath}` : window.location.pathname;
-  const title = currentFilename || 'hotnote';
+  const title = appState.currentFilename || 'hotnote';
   window.history.replaceState(
     {
-      historyIndex: historyIndex,
+      historyIndex: appState.historyIndex,
       appHistory: true,
     },
     title,
@@ -1099,26 +1047,26 @@ const goForward = async () => {
 
 // Navigate up one folder
 const goFolderUp = async () => {
-  if (currentPath.length === 0) return;
+  if (appState.currentPath.length === 0) return;
 
   // Save temp changes if file is dirty
-  if (isDirty && currentFileHandle) {
+  if (appState.isDirty && appState.currentFileHandle) {
     saveTempChanges();
   }
 
-  if (currentPath.length === 1) {
+  if (appState.currentPath.length === 1) {
     // At root level, prompt to open a new parent folder
     await openFolder();
   } else {
     // Remove the last path segment
-    currentPath.pop();
-    currentDirHandle = currentPath[currentPath.length - 1].handle;
-    currentFileHandle = null;
-    currentFilename = '';
+    appState.currentPath.pop();
+    appState.currentDirHandle = appState.currentPath[appState.currentPath.length - 1].handle;
+    appState.currentFileHandle = null;
+    appState.currentFilename = '';
     await initEditor('', 'untitled');
 
     addToHistory();
-    await showFilePicker(currentDirHandle);
+    await showFilePicker(appState.currentDirHandle);
     updateBreadcrumb();
   }
 };
@@ -1145,30 +1093,30 @@ const openFolder = async () => {
     await cleanupTrash();
 
     // Save temp changes if file is dirty
-    if (isDirty && currentFileHandle) {
+    if (appState.isDirty && appState.currentFileHandle) {
       saveTempChanges();
     }
 
     const dirHandle = await FileSystemAdapter.openDirectory();
     if (!dirHandle) return; // User cancelled
 
-    currentDirHandle = dirHandle;
-    rootDirHandle = dirHandle; // Set root directory for session file
-    currentPath = [{ name: dirHandle.name, handle: dirHandle }];
-    currentFileHandle = null;
-    currentFilename = '';
+    appState.currentDirHandle = dirHandle;
+    appState.rootDirHandle = dirHandle; // Set root directory for session file
+    appState.currentPath = [{ name: dirHandle.name, handle: dirHandle }];
+    appState.currentFileHandle = null;
+    appState.currentFilename = '';
     await initEditor('', 'untitled');
 
     // Save folder name to localStorage for auto-resume
     localStorage.setItem('lastFolderName', dirHandle.name);
 
     // Load session file and restore last open file
-    let sessionData = await loadSessionFile(rootDirHandle);
+    let sessionData = await loadSessionFile(appState.rootDirHandle);
     if (!sessionData) {
       // Create empty session file
       console.log('No session file found, creating new one');
       sessionData = createEmptySession(dirHandle.name);
-      await saveSessionFile(rootDirHandle, sessionData);
+      await saveSessionFile(appState.rootDirHandle, sessionData);
     } else {
       console.log('Session file loaded:', sessionData);
     }
@@ -1183,7 +1131,7 @@ const openFolder = async () => {
       console.log('[Session] Session data for file:', JSON.stringify(lastFile, null, 2));
 
       // Set flag to indicate we're restoring from session
-      isRestoringSession = true;
+      appState.isRestoringSession = true;
 
       // Save editor mode preference to localStorage so initEditor can use it
       if (lastFile.editorMode !== undefined) {
@@ -1196,54 +1144,54 @@ const openFolder = async () => {
       console.log('File opened successfully:', opened);
 
       // Clear the flag
-      isRestoringSession = false;
+      appState.isRestoringSession = false;
 
       if (opened) {
         fileRestored = true;
 
         // Wait for editor to be ready, then restore cursor and scroll
         setTimeout(async () => {
-          if (editorManager) {
+          if (appState.editorManager) {
             // Markdown file - using EditorManager
             console.log('[Session] Restoring EditorManager state');
-            await editorManager.ready();
+            await appState.editorManager.ready();
 
             // Restore cursor and scroll position
             if (lastFile.cursorLine !== undefined && lastFile.cursorColumn !== undefined) {
-              editorManager.setCursor(lastFile.cursorLine, lastFile.cursorColumn);
+              appState.editorManager.setCursor(lastFile.cursorLine, lastFile.cursorColumn);
             }
             if (lastFile.scrollTop !== undefined) {
-              editorManager.setScrollPosition(lastFile.scrollTop);
+              appState.editorManager.setScrollPosition(lastFile.scrollTop);
             }
-            editorManager.focus();
+            appState.editorManager.focus();
 
             console.log('[Session] EditorManager state restored:', {
               line: lastFile.cursorLine,
               column: lastFile.cursorColumn,
               scroll: lastFile.scrollTop,
             });
-          } else if (editorView) {
+          } else if (appState.editorView) {
             // Non-markdown file - using CodeMirror
             console.log('[Session] Restoring CodeMirror state');
 
             // Restore cursor position
             if (lastFile.cursorLine !== undefined && lastFile.cursorColumn !== undefined) {
-              const doc = editorView.state.doc;
+              const doc = appState.editorView.state.doc;
               const line = doc.line(lastFile.cursorLine + 1); // Convert to 1-based
               const pos = line.from + Math.min(lastFile.cursorColumn, line.length);
-              editorView.dispatch({
+              appState.editorView.dispatch({
                 selection: { anchor: pos, head: pos },
               });
             }
 
             // Restore scroll position
             if (lastFile.scrollTop !== undefined) {
-              editorView.scrollDOM.scrollTop = lastFile.scrollTop;
+              appState.editorView.scrollDOM.scrollTop = lastFile.scrollTop;
             }
             if (lastFile.scrollLeft !== undefined) {
-              editorView.scrollDOM.scrollLeft = lastFile.scrollLeft;
+              appState.editorView.scrollDOM.scrollLeft = lastFile.scrollLeft;
             }
-            editorView.focus();
+            appState.editorView.focus();
 
             console.log('[Session] CodeMirror state restored');
           }
@@ -1252,7 +1200,7 @@ const openFolder = async () => {
           updateRichToggleButton();
 
           // Mark restoration time to prevent premature saves
-          lastRestorationTime = Date.now();
+          appState.lastRestorationTime = Date.now();
           console.log('[Session] Restoration complete, blocking saves for 1 second');
         }, 100);
       }
@@ -1319,7 +1267,7 @@ const showFilePicker = async (dirHandle) => {
 
     // Check if file has temp changes
     if (entry.kind === 'file') {
-      const pathParts = currentPath.map((p) => p.name);
+      const pathParts = appState.currentPath.map((p) => p.name);
       pathParts.push(entry.name);
       const filePathKey = pathParts.join('/');
       if (hasTempChanges(filePathKey)) {
@@ -1381,7 +1329,7 @@ const showFilePicker = async (dirHandle) => {
 
     item.addEventListener('click', async (e) => {
       e.stopPropagation();
-      focusManager.saveFocusState();
+      appState.focusManager.saveFocusState();
       if (entry.kind === 'directory') {
         await navigateToDirectory(entry);
       } else {
@@ -1406,8 +1354,8 @@ window.hideFilePicker = () => {
   resumeFilePolling();
 
   // Restore focus to editor if a file is currently open
-  if (currentFileHandle) {
-    focusManager.focusEditor({ delay: 50, reason: 'picker-hidden' });
+  if (appState.currentFileHandle) {
+    appState.focusManager.focusEditor({ delay: 50, reason: 'picker-hidden' });
   }
 };
 
@@ -1562,7 +1510,9 @@ const moveToTrash = async (fileHandle) => {
   try {
     // Create .trash folder if it doesn't exist
     if (!trashDirHandle) {
-      trashDirHandle = await currentDirHandle.getDirectoryHandle('.trash', { create: true });
+      trashDirHandle = await appState.currentDirHandle.getDirectoryHandle('.trash', {
+        create: true,
+      });
     }
 
     // Read file contents
@@ -1576,25 +1526,25 @@ const moveToTrash = async (fileHandle) => {
     await writable.close();
 
     // Delete from original location
-    await currentDirHandle.removeEntry(fileHandle.name);
+    await appState.currentDirHandle.removeEntry(fileHandle.name);
 
     // If the deleted file is currently open, close it
-    if (currentFileHandle && currentFileHandle.name === fileHandle.name) {
-      currentFileHandle = null;
-      currentFilename = '';
-      isDirty = false;
+    if (appState.currentFileHandle && appState.currentFileHandle.name === fileHandle.name) {
+      appState.currentFileHandle = null;
+      appState.currentFilename = '';
+      appState.isDirty = false;
       await initEditor('', 'untitled');
       updateBreadcrumb();
     }
 
     // Clear temp changes for this file
-    const pathParts = currentPath.map((p) => p.name);
+    const pathParts = appState.currentPath.map((p) => p.name);
     pathParts.push(fileHandle.name);
     const filePathKey = pathParts.join('/');
     clearTempChanges(filePathKey);
 
     // Refresh the file picker
-    await showFilePicker(currentDirHandle);
+    await showFilePicker(appState.currentDirHandle);
   } catch (err) {
     console.error('Error moving file to trash:', err);
     alert('Error deleting file: ' + err.message);
@@ -1612,7 +1562,9 @@ const restoreFromTrash = async (filename) => {
     const contents = await file.text();
 
     // Restore to original location
-    const restoredFileHandle = await currentDirHandle.getFileHandle(filename, { create: true });
+    const restoredFileHandle = await appState.currentDirHandle.getFileHandle(filename, {
+      create: true,
+    });
     const writable = await restoredFileHandle.createWritable();
     await writable.write(contents);
     await writable.close();
@@ -1621,7 +1573,7 @@ const restoreFromTrash = async (filename) => {
     await trashDirHandle.removeEntry(filename);
 
     // Refresh the file picker
-    await showFilePicker(currentDirHandle);
+    await showFilePicker(appState.currentDirHandle);
   } catch (err) {
     console.error('Error restoring file from trash:', err);
     alert('Error restoring file: ' + err.message);
@@ -1673,8 +1625,8 @@ const showUndoSnackbar = (filename, _fileHandle) => {
 // Cleanup trash folder
 const cleanupTrash = async () => {
   try {
-    if (trashDirHandle && currentDirHandle) {
-      await currentDirHandle.removeEntry('.trash', { recursive: true });
+    if (trashDirHandle && appState.currentDirHandle) {
+      await appState.currentDirHandle.removeEntry('.trash', { recursive: true });
       trashDirHandle = null;
     }
   } catch (err) {
@@ -1685,12 +1637,12 @@ const cleanupTrash = async () => {
 // Navigate to a subdirectory
 const navigateToDirectory = async (dirHandle) => {
   // Save temp changes if file is dirty
-  if (isDirty && currentFileHandle) {
+  if (appState.isDirty && appState.currentFileHandle) {
     saveTempChanges();
   }
 
-  currentPath.push({ name: dirHandle.name, handle: dirHandle });
-  currentDirHandle = dirHandle;
+  appState.currentPath.push({ name: dirHandle.name, handle: dirHandle });
+  appState.currentDirHandle = dirHandle;
 
   // Don't close the current file - keep it open while showing picker
   // Note: Don't add to history - folder navigation is just for browsing
@@ -1701,13 +1653,13 @@ const navigateToDirectory = async (dirHandle) => {
 
 // Open a file by relative path from current directory
 const openFileByPath = async (relativePath) => {
-  if (!currentDirHandle || !relativePath) return false;
+  if (!appState.currentDirHandle || !relativePath) return false;
 
   try {
     const parts = relativePath.split('/');
     const filename = parts.pop();
 
-    let targetDir = currentDirHandle;
+    let targetDir = appState.currentDirHandle;
 
     // Navigate through subdirectories
     for (const dirName of parts) {
@@ -1723,12 +1675,12 @@ const openFileByPath = async (relativePath) => {
     // Update current path if navigated to subdirectory
     if (parts.length > 0 && parts[0]) {
       // Reconstruct path by navigating from root
-      currentPath = [currentPath[0]]; // Keep root
-      let pathDir = currentDirHandle;
+      appState.currentPath = [appState.currentPath[0]]; // Keep root
+      let pathDir = appState.currentDirHandle;
       for (const dirName of parts) {
         if (dirName) {
           pathDir = await pathDir.getDirectoryHandle(dirName);
-          currentPath.push({ name: dirName, handle: pathDir });
+          appState.currentPath.push({ name: dirName, handle: pathDir });
         }
       }
     }
@@ -1746,12 +1698,12 @@ const openFileByPath = async (relativePath) => {
 const openFileFromPicker = async (fileHandle) => {
   try {
     // Save temp changes for currently open file if dirty
-    if (isDirty && currentFileHandle) {
+    if (appState.isDirty && appState.currentFileHandle) {
       saveTempChanges();
     }
 
-    currentFileHandle = fileHandle;
-    currentFilename = fileHandle.name;
+    appState.currentFileHandle = fileHandle;
+    appState.currentFilename = fileHandle.name;
 
     // Always load the original file content from disk
     const fileContent = await FileSystemAdapter.readFile(fileHandle);
@@ -1767,29 +1719,29 @@ const openFileFromPicker = async (fileHandle) => {
 
     if (tempContent !== null) {
       // Restore temp changes but remember the file content as original
-      isDirty = true;
+      appState.isDirty = true;
     } else {
       // Load from file
-      isDirty = false;
+      appState.isDirty = false;
     }
 
     // Initialize editor with the content (temp or file)
-    // but originalContent will be set to fileContent in initEditor
+    // but appState.originalContent will be set to fileContent in initEditor
     await initEditor(fileContent, fileHandle.name);
 
     // If we loaded temp content, replace the editor content and mark as dirty
     if (tempContent !== null) {
-      if (editorView) {
+      if (appState.editorView) {
         // CodeMirror editor
-        editorView.dispatch({
-          changes: { from: 0, to: editorView.state.doc.length, insert: tempContent },
+        appState.editorView.dispatch({
+          changes: { from: 0, to: appState.editorView.state.doc.length, insert: tempContent },
         });
       }
       // Note: For markdown with EditorManager, we reinitialize with tempContent
-      if (editorManager && isMarkdownFile(fileHandle.name)) {
+      if (appState.editorManager && isMarkdownFile(fileHandle.name)) {
         await initEditor(tempContent, fileHandle.name);
       }
-      isDirty = true;
+      appState.isDirty = true;
     }
 
     updateBreadcrumb();
@@ -1800,19 +1752,19 @@ const openFileFromPicker = async (fileHandle) => {
     startFilePolling();
 
     // Restore focus to editor after opening file
-    focusManager.focusEditor({ delay: 100, reason: 'file-opened' });
+    appState.focusManager.focusEditor({ delay: 100, reason: 'file-opened' });
 
     addToHistory();
 
     // Save session file with current file info (debounced to avoid excessive writes)
-    if (currentDirHandle) {
+    if (appState.currentDirHandle) {
       setTimeout(async () => {
         try {
           const filePath = getRelativeFilePath();
           if (filePath) {
-            let sessionData = await loadSessionFile(currentDirHandle);
+            let sessionData = await loadSessionFile(appState.currentDirHandle);
             if (!sessionData) {
-              sessionData = createEmptySession(currentDirHandle.name);
+              sessionData = createEmptySession(appState.currentDirHandle.name);
             }
 
             // Get cursor and scroll from the appropriate editor
@@ -1822,19 +1774,19 @@ const openFileFromPicker = async (fileHandle) => {
             let scrollLeft = 0;
             let editorMode = 'source';
 
-            if (editorManager) {
-              const cursor = editorManager.getCursor();
+            if (appState.editorManager) {
+              const cursor = appState.editorManager.getCursor();
               cursorLine = cursor.line;
               cursorColumn = cursor.column;
-              scrollTop = editorManager.getScrollPosition();
-              editorMode = editorManager.getMode();
-            } else if (editorView) {
-              const pos = editorView.state.selection.main.head;
-              const line = editorView.state.doc.lineAt(pos);
+              scrollTop = appState.editorManager.getScrollPosition();
+              editorMode = appState.editorManager.getMode();
+            } else if (appState.editorView) {
+              const pos = appState.editorView.state.selection.main.head;
+              const line = appState.editorView.state.doc.lineAt(pos);
               cursorLine = line.number - 1;
               cursorColumn = pos - line.from;
-              scrollTop = editorView.scrollDOM.scrollTop;
-              scrollLeft = editorView.scrollDOM.scrollLeft;
+              scrollTop = appState.editorView.scrollDOM.scrollTop;
+              scrollLeft = appState.editorView.scrollDOM.scrollLeft;
             }
 
             sessionData.session.lastOpenFile = {
@@ -1846,7 +1798,7 @@ const openFileFromPicker = async (fileHandle) => {
               editorMode: editorMode,
             };
 
-            await saveSessionFile(rootDirHandle, sessionData);
+            await saveSessionFile(appState.rootDirHandle, sessionData);
           }
         } catch (err) {
           console.error('Error saving session file:', err);
@@ -1868,7 +1820,7 @@ const saveFile = async () => {
     return;
   }
 
-  if (!isDirty && currentFileHandle) {
+  if (!appState.isDirty && appState.currentFileHandle) {
     // No changes to save
     return;
   }
@@ -1877,25 +1829,27 @@ const saveFile = async () => {
     const content = getEditorContent();
 
     // If no file handle exists, prompt for save location
-    if (!currentFileHandle) {
-      currentFileHandle = await FileSystemAdapter.saveFilePicker(currentFilename || 'untitled.txt');
+    if (!appState.currentFileHandle) {
+      appState.currentFileHandle = await FileSystemAdapter.saveFilePicker(
+        appState.currentFilename || 'untitled.txt'
+      );
 
-      if (!currentFileHandle) return; // User cancelled
+      if (!appState.currentFileHandle) return; // User cancelled
 
-      currentFilename = currentFileHandle.name;
+      appState.currentFilename = appState.currentFileHandle.name;
       updateBreadcrumb();
     }
 
     // Write to file
-    await FileSystemAdapter.writeFile(currentFileHandle, content);
+    await FileSystemAdapter.writeFile(appState.currentFileHandle, content);
 
-    isDirty = false;
+    appState.isDirty = false;
 
     // Update original content to the saved content
-    originalContent = content;
+    appState.originalContent = content;
 
     // Update file modification tracking
-    const metadata = await FileSystemAdapter.getFileMetadata(currentFileHandle);
+    const metadata = await FileSystemAdapter.getFileMetadata(appState.currentFileHandle);
     lastKnownModified = metadata.lastModified;
     lastModifiedLocal = null; // Clear since we just saved
 
@@ -1916,44 +1870,31 @@ const saveFile = async () => {
 
 // Autosave functionality
 const startAutosave = () => {
-  if (autosaveInterval) {
-    clearInterval(autosaveInterval);
+  if (appState.autosaveInterval) {
+    clearInterval(appState.autosaveInterval);
   }
 
-  autosaveInterval = setInterval(async () => {
-    if (isDirty && currentFileHandle) {
+  appState.autosaveInterval = setInterval(async () => {
+    if (appState.isDirty && appState.currentFileHandle) {
       await saveFile();
     }
   }, 2000); // Save every 2 seconds if dirty
 };
 
 const stopAutosave = () => {
-  if (autosaveInterval) {
-    clearInterval(autosaveInterval);
-    autosaveInterval = null;
+  if (appState.autosaveInterval) {
+    clearInterval(appState.autosaveInterval);
+    appState.autosaveInterval = null;
   }
 };
 
 const toggleAutosave = (enabled) => {
-  autosaveEnabled = enabled;
+  appState.autosaveEnabled = enabled;
   if (enabled) {
     startAutosave();
   } else {
     stopAutosave();
   }
-};
-
-// Debounce utility
-const debounce = (func, wait) => {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
 };
 
 // User activity tracking
@@ -1969,7 +1910,7 @@ const isUserIdle = () => {
 // File polling utilities
 const shouldPollFile = () => {
   return (
-    currentFileHandle !== null && // File is open
+    appState.currentFileHandle !== null && // File is open
     !isPollingPaused && // Not paused during file picker
     isUserIdle() // User is idle
   );
@@ -1981,7 +1922,7 @@ const checkFileForExternalChanges = async () => {
   }
 
   try {
-    const metadata = await FileSystemAdapter.getFileMetadata(currentFileHandle);
+    const metadata = await FileSystemAdapter.getFileMetadata(appState.currentFileHandle);
     const externalModified = metadata.lastModified;
 
     // Check if file was modified externally
@@ -2023,57 +1964,57 @@ const reconcileFileChanges = async (externalModified) => {
     let capturedCursorLine = 0;
     let capturedCursorColumn = 0;
 
-    if (editorManager) {
+    if (appState.editorManager) {
       // Capture from markdown editor
-      if (editorManager.currentMode === 'wysiwyg') {
-        capturedScrollTop = editorManager.getScrollPosition();
+      if (appState.editorManager.currentMode === 'wysiwyg') {
+        capturedScrollTop = appState.editorManager.getScrollPosition();
       } else {
-        const view = editorManager.currentEditor?.view;
+        const view = appState.editorManager.currentEditor?.view;
         if (view) {
           capturedScrollTop = view.scrollDOM.scrollTop;
         }
       }
-      const cursor = editorManager.getCursor();
+      const cursor = appState.editorManager.getCursor();
       capturedCursorLine = cursor.line;
       capturedCursorColumn = cursor.column;
-    } else if (editorView) {
+    } else if (appState.editorView) {
       // Capture from regular CodeMirror
-      capturedScrollTop = editorView.scrollDOM.scrollTop;
-      const pos = editorView.state.selection.main.head;
-      const line = editorView.state.doc.lineAt(pos);
+      capturedScrollTop = appState.editorView.scrollDOM.scrollTop;
+      const pos = appState.editorView.state.selection.main.head;
+      const line = appState.editorView.state.doc.lineAt(pos);
       capturedCursorLine = line.number - 1;
       capturedCursorColumn = pos - line.from;
     }
 
     // Read fresh content from disk
-    const freshContent = await FileSystemAdapter.readFile(currentFileHandle);
+    const freshContent = await FileSystemAdapter.readFile(appState.currentFileHandle);
 
     // Update editor with fresh content (preserving scroll position)
-    if (editorManager) {
-      const wasWYSIWYG = editorManager.currentMode === 'wysiwyg';
+    if (appState.editorManager) {
+      const wasWYSIWYG = appState.editorManager.currentMode === 'wysiwyg';
 
       if (wasWYSIWYG) {
         // For WYSIWYG: destroy and recreate to avoid duplicates
         // Destroy old editor completely
-        editorManager.currentEditor.destroy();
-        editorManager.container.innerHTML = '';
+        appState.editorManager.currentEditor.destroy();
+        appState.editorManager.container.innerHTML = '';
 
         // Create new editor with fresh content
-        await editorManager.init('wysiwyg', freshContent);
+        await appState.editorManager.init('wysiwyg', freshContent);
 
         // Update focus manager with new editor instance
-        focusManager.setEditors(editorManager, null);
+        appState.focusManager.setEditors(appState.editorManager, null);
 
         // Restore scroll after editor is ready
-        await editorManager.ready();
+        await appState.editorManager.ready();
 
         // Small delay to let WYSIWYG render, then restore position
         setTimeout(() => {
-          if (editorManager.currentEditor) {
-            editorManager.currentEditor.setScrollPosition(capturedScrollTop);
+          if (appState.editorManager.currentEditor) {
+            appState.editorManager.currentEditor.setScrollPosition(capturedScrollTop);
             // Restore cursor in WYSIWYG
             try {
-              editorManager.setCursor(capturedCursorLine, capturedCursorColumn);
+              appState.editorManager.setCursor(capturedCursorLine, capturedCursorColumn);
             } catch (_e) {
               // Line might not exist in new content
             }
@@ -2081,7 +2022,7 @@ const reconcileFileChanges = async (externalModified) => {
         }, 100);
       } else {
         // Source mode: update with scroll preservation
-        const view = editorManager.currentEditor?.view;
+        const view = appState.editorManager.currentEditor?.view;
         if (view) {
           view.dispatch({
             changes: {
@@ -2108,25 +2049,25 @@ const reconcileFileChanges = async (externalModified) => {
           });
         }
       }
-    } else if (editorView) {
+    } else if (appState.editorView) {
       // For non-markdown files: update with scroll and cursor preservation
-      editorView.dispatch({
+      appState.editorView.dispatch({
         changes: {
           from: 0,
-          to: editorView.state.doc.length,
+          to: appState.editorView.state.doc.length,
           insert: freshContent,
         },
       });
 
       // Restore scroll and cursor position immediately
       requestAnimationFrame(() => {
-        editorView.scrollDOM.scrollTop = capturedScrollTop;
+        appState.editorView.scrollDOM.scrollTop = capturedScrollTop;
 
         // Restore cursor position
         try {
-          const lineObj = editorView.state.doc.line(capturedCursorLine + 1);
+          const lineObj = appState.editorView.state.doc.line(capturedCursorLine + 1);
           const pos = lineObj.from + Math.min(capturedCursorColumn, lineObj.length);
-          editorView.dispatch({
+          appState.editorView.dispatch({
             selection: { anchor: pos, head: pos },
           });
         } catch (_e) {
@@ -2136,8 +2077,8 @@ const reconcileFileChanges = async (externalModified) => {
     }
 
     // Update tracking variables
-    originalContent = freshContent;
-    isDirty = false;
+    appState.originalContent = freshContent;
+    appState.isDirty = false;
     lastKnownModified = externalModified;
     lastModifiedLocal = null; // Clear local timestamp since we just loaded
 
@@ -2160,7 +2101,7 @@ const reconcileFileChanges = async (externalModified) => {
     }
 
     // Restore focus to editor
-    focusManager.focusEditor({ delay: 50, reason: 'file-synced' });
+    appState.focusManager.focusEditor({ delay: 50, reason: 'file-synced' });
 
     showFileReloadNotification();
   } catch (err) {
@@ -2212,108 +2153,8 @@ const resumeFilePolling = () => {
   isPollingPaused = false;
 };
 
-// Save current editor state to session file (debounced)
-const saveEditorStateToSession = async () => {
-  // Don't save if we just restored state (wait for scroll animation to complete)
-  // Block for 1 second (animation is 250ms, plus margin for safety)
-  const timeSinceRestoration = Date.now() - lastRestorationTime;
-  console.log(
-    '[Session] Save check: lastRestorationTime=',
-    lastRestorationTime,
-    'timeSince=',
-    timeSinceRestoration,
-    'willBlock=',
-    lastRestorationTime > 0 && timeSinceRestoration < 1000
-  );
-  if (lastRestorationTime > 0 && timeSinceRestoration < 1000) {
-    console.log(
-      '[Session] Skipping save - scroll animation in progress (',
-      timeSinceRestoration,
-      'ms since restoration)'
-    );
-    return;
-  }
-
-  if (!currentDirHandle || !currentFileHandle) {
-    console.log('[Session] Skipping save - no dir or file handle');
-    return;
-  }
-
-  try {
-    const filePath = getRelativeFilePath();
-    if (!filePath) {
-      console.log('[Session] Skipping save - no file path');
-      return;
-    }
-
-    let sessionData = await loadSessionFile(currentDirHandle);
-    if (!sessionData) {
-      sessionData = createEmptySession(currentDirHandle.name);
-    }
-
-    // Get current editor state
-    let cursorLine = 0;
-    let cursorColumn = 0;
-    let scrollTop = 0;
-    let scrollLeft = 0;
-    let editorMode = 'source'; // Default for non-markdown files
-
-    console.log(
-      '[Session] saveEditorStateToSession called. editorManager:',
-      !!editorManager,
-      'editorView:',
-      !!editorView
-    );
-
-    if (editorManager) {
-      // Markdown file using EditorManager
-      const cursor = editorManager.getCursor();
-      cursorLine = cursor.line;
-      cursorColumn = cursor.column;
-      scrollTop = editorManager.getScrollPosition();
-      editorMode = editorManager.getMode();
-      console.log('[Session] Saving EditorManager state:', {
-        cursorLine,
-        cursorColumn,
-        scrollTop,
-        editorMode,
-      });
-    } else if (editorView) {
-      // Non-markdown file using CodeMirror
-      const pos = editorView.state.selection.main.head;
-      const line = editorView.state.doc.lineAt(pos);
-      cursorLine = line.number - 1; // Convert to 0-based
-      cursorColumn = pos - line.from;
-      scrollTop = editorView.scrollDOM.scrollTop;
-      scrollLeft = editorView.scrollDOM.scrollLeft;
-      console.log('[Session] Saving CodeMirror state:', {
-        cursorLine,
-        cursorColumn,
-        scrollTop,
-        scrollLeft,
-      });
-    } else {
-      console.log('[Session] No editor active, saving defaults');
-    }
-
-    sessionData.session.lastOpenFile = {
-      path: filePath,
-      cursorLine: cursorLine,
-      cursorColumn: cursorColumn,
-      scrollTop: scrollTop,
-      scrollLeft: scrollLeft,
-      editorMode: editorMode,
-    };
-
-    console.log('[Session] Saving session file with data:', sessionData.session.lastOpenFile);
-    await saveSessionFile(rootDirHandle, sessionData);
-  } catch (err) {
-    console.error('Error saving editor state:', err);
-  }
-};
-
 // Debounced version (save every 2 seconds)
-const debouncedSaveEditorState = debounce(saveEditorStateToSession, 2000);
+const debouncedSaveEditorState = createDebouncedSaveEditorState(getRelativeFilePath);
 
 // Fuzzy match helper - handles case-insensitive, substring, and space-as-wildcard matching
 const fuzzyMatch = (text, query) => {
@@ -2569,8 +2410,8 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
     breadcrumb.innerHTML = '';
 
     // Rebuild path if exists
-    if (currentPath.length > 0) {
-      currentPath.forEach((segment, _index) => {
+    if (appState.currentPath.length > 0) {
+      appState.currentPath.forEach((segment, _index) => {
         const item = document.createElement('span');
         item.className = 'breadcrumb-item';
         item.textContent = segment.name;
@@ -2625,7 +2466,7 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
       try {
         searchInProgress = true;
 
-        if (isRecursiveMode && currentDirHandle) {
+        if (isRecursiveMode && appState.currentDirHandle) {
           // Show loading animation for recursive search
           header.classList.add('searching');
 
@@ -2634,7 +2475,7 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
           dropdown.innerHTML = '';
 
           // Stream results as they're found
-          for await (const result of recursiveSearchFiles(currentDirHandle, searchQuery)) {
+          for await (const result of recursiveSearchFiles(appState.currentDirHandle, searchQuery)) {
             results.push(result);
 
             // Add to dropdown immediately for instant feedback
@@ -2745,25 +2586,26 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
       if (filename === '..' || filename === '...') {
         // Handle '..' - go up one folder
         if (filename === '..') {
-          if (currentPath.length === 0) {
+          if (appState.currentPath.length === 0) {
             // At top level, open folder dialog
             resolve(null);
             await openFolder();
             return;
-          } else if (currentPath.length === 1) {
+          } else if (appState.currentPath.length === 1) {
             // At root level, prompt to open a new parent folder
             resolve(null);
             await openFolder();
             return;
           } else {
             // Remove the last path segment
-            currentPath.pop();
-            currentDirHandle = currentPath[currentPath.length - 1].handle;
-            currentFileHandle = null;
-            currentFilename = '';
+            appState.currentPath.pop();
+            appState.currentDirHandle =
+              appState.currentPath[appState.currentPath.length - 1].handle;
+            appState.currentFileHandle = null;
+            appState.currentFilename = '';
             await initEditor('', 'untitled');
             addToHistory();
-            await showFilePicker(currentDirHandle);
+            await showFilePicker(appState.currentDirHandle);
             updateBreadcrumb();
             resolve(null);
             return;
@@ -2772,21 +2614,21 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
 
         // Handle '...' - go to workspace root
         if (filename === '...') {
-          if (currentPath.length === 0) {
+          if (appState.currentPath.length === 0) {
             // At top level, open folder dialog
             resolve(null);
             await openFolder();
             return;
           } else {
             // Go to workspace root (first item in path)
-            const rootHandle = currentPath[0].handle;
-            currentPath = [currentPath[0]];
-            currentDirHandle = rootHandle;
-            currentFileHandle = null;
-            currentFilename = '';
+            const rootHandle = appState.currentPath[0].handle;
+            appState.currentPath = [appState.currentPath[0]];
+            appState.currentDirHandle = rootHandle;
+            appState.currentFileHandle = null;
+            appState.currentFilename = '';
             await initEditor('', 'untitled');
             addToHistory();
-            await showFilePicker(currentDirHandle);
+            await showFilePicker(appState.currentDirHandle);
             updateBreadcrumb();
             resolve(null);
             return;
@@ -2854,9 +2696,9 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
             handleCancel();
             hideFilePicker();
             // Only focus editor if a document is open
-            if (currentFileHandle) {
+            if (appState.currentFileHandle) {
               setTimeout(() => {
-                focusManager.focusEditor({ reason: 'escape-from-navbar' });
+                appState.focusManager.focusEditor({ reason: 'escape-from-navbar' });
               }, 50);
             }
           }
@@ -2871,9 +2713,9 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
           handleCancel();
           hideFilePicker();
           // Only focus editor if a document is open
-          if (currentFileHandle) {
+          if (appState.currentFileHandle) {
             setTimeout(() => {
-              focusManager.focusEditor({ reason: 'escape-from-navbar' });
+              appState.focusManager.focusEditor({ reason: 'escape-from-navbar' });
             }, 50);
           }
         }
@@ -2981,14 +2823,14 @@ const showFilenameInput = async (existingFiles = [], initialValue = '') => {
 // Quick file creation - triggered by typing
 const quickFileCreate = async (initialChar = '') => {
   // Only trigger if we have a directory context
-  if (!currentDirHandle) {
+  if (!appState.currentDirHandle) {
     return;
   }
 
   // Get existing files in current directory for autocomplete
   let existingFiles = [];
   try {
-    const entries = await FileSystemAdapter.listDirectory(currentDirHandle);
+    const entries = await FileSystemAdapter.listDirectory(appState.currentDirHandle);
     existingFiles = entries.filter((entry) => entry.kind === 'file').map((entry) => entry.name);
   } catch (err) {
     console.error('Error listing directory:', err);
@@ -3009,11 +2851,11 @@ const quickFileCreate = async (initialChar = '') => {
 
 // Helper to create or open a file
 const createOrOpenFile = async (filePathOrName) => {
-  const previousFileHandle = currentFileHandle;
-  const previousFilename = currentFilename;
-  const previousDirHandle = currentDirHandle;
-  const previousPath = [...currentPath];
-  const wasDirty = isDirty;
+  const previousFileHandle = appState.currentFileHandle;
+  const previousFilename = appState.currentFilename;
+  const previousDirHandle = appState.currentDirHandle;
+  const previousPath = [...appState.currentPath];
+  const wasDirty = appState.isDirty;
 
   try {
     let fileHandle;
@@ -3027,8 +2869,8 @@ const createOrOpenFile = async (filePathOrName) => {
       const directories = parts.filter((p) => p); // Remove empty strings
 
       // Navigate through the directory path
-      let targetDirHandle = currentDirHandle;
-      const newPath = [...currentPath];
+      let targetDirHandle = appState.currentDirHandle;
+      const newPath = [...appState.currentPath];
 
       for (const dirName of directories) {
         try {
@@ -3043,25 +2885,25 @@ const createOrOpenFile = async (filePathOrName) => {
       }
 
       // Update current context to the target directory
-      currentDirHandle = targetDirHandle;
-      currentPath = newPath;
+      appState.currentDirHandle = targetDirHandle;
+      appState.currentPath = newPath;
     }
 
     // Check if the target is a directory or file
-    if (currentDirHandle) {
+    if (appState.currentDirHandle) {
       // First try to see if it's a directory
       try {
-        const dirHandle = await currentDirHandle.getDirectoryHandle(actualFilename, {
+        const dirHandle = await appState.currentDirHandle.getDirectoryHandle(actualFilename, {
           create: false,
         });
 
         // It's a directory - navigate to it
-        currentDirHandle = dirHandle;
-        currentPath.push({ name: actualFilename, handle: dirHandle });
+        appState.currentDirHandle = dirHandle;
+        appState.currentPath.push({ name: actualFilename, handle: dirHandle });
 
         // Close current file
-        currentFileHandle = null;
-        currentFilename = '';
+        appState.currentFileHandle = null;
+        appState.currentFilename = '';
         await initEditor('', 'untitled');
 
         updateBreadcrumb();
@@ -3071,41 +2913,45 @@ const createOrOpenFile = async (filePathOrName) => {
       } catch {
         // Not a directory, try as file
         try {
-          fileHandle = await currentDirHandle.getFileHandle(actualFilename, { create: false });
+          fileHandle = await appState.currentDirHandle.getFileHandle(actualFilename, {
+            create: false,
+          });
           fileExists = true;
         } catch {
           // File doesn't exist, create it
-          fileHandle = await currentDirHandle.getFileHandle(actualFilename, { create: true });
+          fileHandle = await appState.currentDirHandle.getFileHandle(actualFilename, {
+            create: true,
+          });
         }
       }
     } else {
       fileHandle = await FileSystemAdapter.saveFilePicker(actualFilename);
       if (!fileHandle) {
-        currentFileHandle = previousFileHandle;
-        currentFilename = previousFilename;
-        currentDirHandle = previousDirHandle;
-        currentPath = previousPath;
-        isDirty = wasDirty;
+        appState.currentFileHandle = previousFileHandle;
+        appState.currentFilename = previousFilename;
+        appState.currentDirHandle = previousDirHandle;
+        appState.currentPath = previousPath;
+        appState.isDirty = wasDirty;
         updateBreadcrumb();
         return;
       }
     }
 
     // Set as current file
-    currentFileHandle = fileHandle;
-    currentFilename = actualFilename;
+    appState.currentFileHandle = fileHandle;
+    appState.currentFilename = actualFilename;
 
     // If file exists, open it instead of creating new
     if (fileExists) {
       const content = await FileSystemAdapter.readFile(fileHandle);
       await initEditor(content, actualFilename);
-      isDirty = false;
-      originalContent = content;
+      appState.isDirty = false;
+      appState.originalContent = content;
     } else {
       await FileSystemAdapter.writeFile(fileHandle, '');
       await initEditor('', actualFilename);
-      isDirty = false;
-      originalContent = '';
+      appState.isDirty = false;
+      appState.originalContent = '';
     }
 
     updateBreadcrumb();
@@ -3114,18 +2960,18 @@ const createOrOpenFile = async (filePathOrName) => {
     hideFilePicker();
 
     // Focus the editor after DOM updates complete
-    focusManager.focusEditor({ delay: 100, reason: 'new-file' });
+    appState.focusManager.focusEditor({ delay: 100, reason: 'new-file' });
   } catch (err) {
     if (err.name !== 'AbortError') {
       console.error('Error creating/opening file:', err);
       alert('Error: ' + err.message);
     }
     // Restore previous state
-    currentFileHandle = previousFileHandle;
-    currentFilename = previousFilename;
-    currentDirHandle = previousDirHandle;
-    currentPath = previousPath;
-    isDirty = wasDirty;
+    appState.currentFileHandle = previousFileHandle;
+    appState.currentFilename = previousFilename;
+    appState.currentDirHandle = previousDirHandle;
+    appState.currentPath = previousPath;
+    appState.isDirty = wasDirty;
     updateBreadcrumb();
   }
 };
@@ -3140,20 +2986,24 @@ const newFile = async () => {
   }
 
   // Store current state in case we need to restore
-  const previousFileHandle = currentFileHandle;
-  const previousFilename = currentFilename;
-  const wasDirty = isDirty;
+  const previousFileHandle = appState.currentFileHandle;
+  const previousFilename = appState.currentFilename;
+  const wasDirty = appState.isDirty;
 
-  if (editorView && editorView.state.doc.toString().length > 0 && isDirty) {
+  if (
+    appState.editorView &&
+    appState.editorView.state.doc.toString().length > 0 &&
+    appState.isDirty
+  ) {
     const confirm = window.confirm('Current file has unsaved changes. Create new file anyway?');
     if (!confirm) return;
   }
 
   // Get existing files in current directory for autocomplete
   let existingFiles = [];
-  if (currentDirHandle) {
+  if (appState.currentDirHandle) {
     try {
-      const entries = await FileSystemAdapter.listDirectory(currentDirHandle);
+      const entries = await FileSystemAdapter.listDirectory(appState.currentDirHandle);
       existingFiles = entries.filter((entry) => entry.kind === 'file').map((entry) => entry.name);
     } catch (err) {
       console.error('Error listing directory:', err);
@@ -3165,9 +3015,9 @@ const newFile = async () => {
 
   if (!filename) {
     // User cancelled - restore previous state
-    currentFileHandle = previousFileHandle;
-    currentFilename = previousFilename;
-    isDirty = wasDirty;
+    appState.currentFileHandle = previousFileHandle;
+    appState.currentFilename = previousFilename;
+    appState.isDirty = wasDirty;
     updateBreadcrumb();
     return;
   }
@@ -3199,7 +3049,7 @@ const toggleDarkMode = async () => {
   }
 
   // Reinitialize editor with new theme colors
-  if (editorView || editorManager) {
+  if (appState.editorView || appState.editorManager) {
     const currentContent = getEditorContent();
 
     // Save editor state before destroying
@@ -3207,37 +3057,37 @@ const toggleDarkMode = async () => {
     let scrollLeft = 0;
     let currentMode = null;
 
-    if (editorView) {
-      const scroller = editorView.scrollDOM;
+    if (appState.editorView) {
+      const scroller = appState.editorView.scrollDOM;
       scrollTop = scroller.scrollTop;
       scrollLeft = scroller.scrollLeft;
-    } else if (editorManager) {
-      scrollTop = editorManager.getScrollPosition();
-      currentMode = editorManager.getMode(); // Preserve current mode for markdown
+    } else if (appState.editorManager) {
+      scrollTop = appState.editorManager.getScrollPosition();
+      currentMode = appState.editorManager.getMode(); // Preserve current mode for markdown
     }
 
-    // Temporarily set isRestoringSession to preserve the mode
-    const wasRestoringSession = isRestoringSession;
+    // Temporarily set appState.isRestoringSession to preserve the mode
+    const wasRestoringSession = appState.isRestoringSession;
     if (currentMode) {
-      isRestoringSession = true;
-      localStorage.setItem(`mode_${currentFilename}`, currentMode);
+      appState.isRestoringSession = true;
+      localStorage.setItem(`mode_${appState.currentFilename}`, currentMode);
     }
 
-    await initEditor(currentContent, currentFilename);
+    await initEditor(currentContent, appState.currentFilename);
 
     // Restore previous session state
-    isRestoringSession = wasRestoringSession;
+    appState.isRestoringSession = wasRestoringSession;
 
     // Restore scroll position
     setTimeout(() => {
-      if (editorView) {
-        editorView.scrollDOM.scrollTop = scrollTop;
-        editorView.scrollDOM.scrollLeft = scrollLeft;
-      } else if (editorManager) {
-        editorManager.setScrollPosition(scrollTop);
+      if (appState.editorView) {
+        appState.editorView.scrollDOM.scrollTop = scrollTop;
+        appState.editorView.scrollDOM.scrollLeft = scrollLeft;
+      } else if (appState.editorManager) {
+        appState.editorManager.setScrollPosition(scrollTop);
       }
       // Restore focus after editor reinit
-      focusManager.focusEditor({ reason: 'theme-toggle' });
+      appState.focusManager.focusEditor({ reason: 'theme-toggle' });
     }, 0);
   }
 };
@@ -3287,7 +3137,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', asy
     }
 
     // Re-initialize editor with new theme colors
-    if (editorView || editorManager) {
+    if (appState.editorView || appState.editorManager) {
       const currentContent = getEditorContent();
 
       // Save editor state before destroying
@@ -3295,34 +3145,34 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', asy
       let scrollLeft = 0;
       let currentMode = null;
 
-      if (editorView) {
-        const scroller = editorView.scrollDOM;
+      if (appState.editorView) {
+        const scroller = appState.editorView.scrollDOM;
         scrollTop = scroller.scrollTop;
         scrollLeft = scroller.scrollLeft;
-      } else if (editorManager) {
-        scrollTop = editorManager.getScrollPosition();
-        currentMode = editorManager.getMode();
+      } else if (appState.editorManager) {
+        scrollTop = appState.editorManager.getScrollPosition();
+        currentMode = appState.editorManager.getMode();
       }
 
-      // Temporarily set isRestoringSession to preserve the mode
-      const wasRestoringSession = isRestoringSession;
+      // Temporarily set appState.isRestoringSession to preserve the mode
+      const wasRestoringSession = appState.isRestoringSession;
       if (currentMode) {
-        isRestoringSession = true;
-        localStorage.setItem(`mode_${currentFilename}`, currentMode);
+        appState.isRestoringSession = true;
+        localStorage.setItem(`mode_${appState.currentFilename}`, currentMode);
       }
 
-      await initEditor(currentContent, currentFilename);
+      await initEditor(currentContent, appState.currentFilename);
 
       // Restore previous session state
-      isRestoringSession = wasRestoringSession;
+      appState.isRestoringSession = wasRestoringSession;
 
       // Restore scroll position
       setTimeout(() => {
-        if (editorView) {
-          editorView.scrollDOM.scrollTop = scrollTop;
-          editorView.scrollDOM.scrollLeft = scrollLeft;
-        } else if (editorManager) {
-          editorManager.setScrollPosition(scrollTop);
+        if (appState.editorView) {
+          appState.editorView.scrollDOM.scrollTop = scrollTop;
+          appState.editorView.scrollDOM.scrollLeft = scrollLeft;
+        } else if (appState.editorManager) {
+          appState.editorManager.setScrollPosition(scrollTop);
         }
       }, 0);
     }
@@ -3331,31 +3181,31 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', asy
 
 // Event listeners
 document.getElementById('new-btn').addEventListener('click', () => {
-  focusManager.saveFocusState();
+  appState.focusManager.saveFocusState();
   newFile();
 });
 document.getElementById('back-btn').addEventListener('click', () => {
   // Save current editor state to history before navigating
-  if (currentFileHandle && navigationHistory[historyIndex]) {
-    const editorState = focusManager._captureEditorState();
+  if (appState.currentFileHandle && appState.navigationHistory[appState.historyIndex]) {
+    const editorState = appState.focusManager._captureEditorState();
     if (editorState) {
-      navigationHistory[historyIndex].editorState = editorState;
+      appState.navigationHistory[appState.historyIndex].editorState = editorState;
     }
   }
   goBack();
 });
 document.getElementById('forward-btn').addEventListener('click', () => {
   // Save current editor state to history before navigating
-  if (currentFileHandle && navigationHistory[historyIndex]) {
-    const editorState = focusManager._captureEditorState();
+  if (appState.currentFileHandle && appState.navigationHistory[appState.historyIndex]) {
+    const editorState = appState.focusManager._captureEditorState();
     if (editorState) {
-      navigationHistory[historyIndex].editorState = editorState;
+      appState.navigationHistory[appState.historyIndex].editorState = editorState;
     }
   }
   goForward();
 });
 document.getElementById('folder-up-btn').addEventListener('click', () => {
-  focusManager.saveFocusState();
+  appState.focusManager.saveFocusState();
   goFolderUp();
 });
 // Helper function to animate autosave label
@@ -3383,18 +3233,18 @@ document.getElementById('autosave-checkbox').addEventListener('change', (e) => {
 });
 document.getElementById('rich-toggle-btn').addEventListener('click', () => {
   console.log('[RichMode] Rich toggle button clicked');
-  focusManager.saveFocusState();
+  appState.focusManager.saveFocusState();
   toggleRichMode();
 });
 document.getElementById('dark-mode-toggle').addEventListener('click', () => {
-  focusManager.saveFocusState();
+  appState.focusManager.saveFocusState();
   toggleDarkMode();
 });
 
 // Header click to show file picker
 document.querySelector('header').addEventListener('click', (e) => {
   // Only handle if a folder is currently open
-  if (!currentDirHandle) return;
+  if (!appState.currentDirHandle) return;
 
   // Don't trigger if clicking on interactive elements or breadcrumb items
   if (
@@ -3409,8 +3259,8 @@ document.querySelector('header').addEventListener('click', (e) => {
   }
 
   // Show the file picker (same behavior as clicking filename)
-  focusManager.saveFocusState();
-  showFilePicker(currentDirHandle);
+  appState.focusManager.saveFocusState();
+  showFilePicker(appState.currentDirHandle);
 });
 
 // Browser back/forward button listener
@@ -3420,27 +3270,30 @@ window.addEventListener('popstate', async (event) => {
     return;
   }
 
-  const targetIndex = event.state.historyIndex;
+  const targetIndex = event.state.appState.historyIndex;
 
   // Set flag to prevent addToHistory from creating duplicate entries
-  isPopStateNavigation = true;
+  appState.isPopStateNavigation = true;
 
   try {
     // Navigate to the target index
-    if (targetIndex < historyIndex) {
+    if (targetIndex < appState.historyIndex) {
       // Going back
-      while (historyIndex > targetIndex && historyIndex > 0) {
+      while (appState.historyIndex > targetIndex && appState.historyIndex > 0) {
         await goBack();
       }
-    } else if (targetIndex > historyIndex) {
+    } else if (targetIndex > appState.historyIndex) {
       // Going forward
-      while (historyIndex < targetIndex && historyIndex < navigationHistory.length - 1) {
+      while (
+        appState.historyIndex < targetIndex &&
+        appState.historyIndex < appState.navigationHistory.length - 1
+      ) {
         await goForward();
       }
     }
   } finally {
     // Always reset the flag
-    isPopStateNavigation = false;
+    appState.isPopStateNavigation = false;
   }
 });
 
@@ -3464,7 +3317,7 @@ document.addEventListener('keydown', async (e) => {
   }
 
   // Don't trigger if there's no directory context
-  if (!currentDirHandle) {
+  if (!appState.currentDirHandle) {
     return;
   }
 
@@ -3499,13 +3352,13 @@ document.addEventListener('keydown', (e) => {
   }
 
   // Check if editor already has focus
-  if (focusManager.hasEditorFocus()) {
+  if (appState.focusManager.hasEditorFocus()) {
     return;
   }
 
   // Focus the appropriate editor
   e.preventDefault();
-  focusManager.focusEditor({ reason: 'enter-key' });
+  appState.focusManager.focusEditor({ reason: 'enter-key' });
 });
 
 // Global Escape key listener to blur editor and show search
@@ -3520,13 +3373,13 @@ document.addEventListener('keydown', async (e) => {
   }
 
   // Check if editor has focus
-  if (focusManager.hasEditorFocus()) {
+  if (appState.focusManager.hasEditorFocus()) {
     // Blur the active element (editor) and show search box
     e.preventDefault();
     document.activeElement.blur();
 
     // Show search box if we have a directory context
-    if (currentDirHandle) {
+    if (appState.currentDirHandle) {
       await quickFileCreate('');
       // Select all text in the input
       const input = document.querySelector('.breadcrumb-input');
@@ -3542,7 +3395,7 @@ function updateEditorBlurState() {
   const editorElement = document.getElementById('editor');
   if (!editorElement) return;
 
-  if (focusManager.hasEditorFocus()) {
+  if (appState.focusManager.hasEditorFocus()) {
     editorElement.classList.remove('blurred');
   } else {
     editorElement.classList.add('blurred');
@@ -3597,14 +3450,14 @@ const showResumePrompt = (folderName) => {
     `;
 
   document.getElementById('resume-folder-btn').addEventListener('click', () => {
-    focusManager.saveFocusState();
+    appState.focusManager.saveFocusState();
     hideFilePicker();
     openFolder();
   });
 
   document.getElementById('new-folder-btn').addEventListener('click', () => {
     // Clear saved folder name and show welcome prompt
-    focusManager.saveFocusState();
+    appState.focusManager.saveFocusState();
     localStorage.removeItem('lastFolderName');
     hideFilePicker();
     openFolder();
@@ -3629,7 +3482,7 @@ const showWelcomePrompt = () => {
     `;
 
   document.getElementById('welcome-folder-btn').addEventListener('click', () => {
-    focusManager.saveFocusState();
+    appState.focusManager.saveFocusState();
     hideFilePicker();
     openFolder();
   });
@@ -3878,7 +3731,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   initFilePickerResize();
 
   // Start autosave (enabled by default)
-  if (autosaveEnabled) {
+  if (appState.autosaveEnabled) {
     startAutosave();
     // Animate the autosave label to hide after initial load
     animateAutosaveLabel(true);
@@ -3888,7 +3741,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   if (!window.history.state || !window.history.state.appHistory) {
     window.history.replaceState(
       {
-        historyIndex: historyIndex,
+        historyIndex: appState.historyIndex,
         appHistory: true,
       },
       'hotnote',
@@ -3934,11 +3787,11 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
     // Check for version updates when tab regains focus
     performVersionCheck();
 
-    if (!currentDirHandle || !currentFileHandle) return;
+    if (!appState.currentDirHandle || !appState.currentFileHandle) return;
 
     try {
       // Reload session file to check for external changes
-      const sessionData = await loadSessionFile(currentDirHandle);
+      const sessionData = await loadSessionFile(appState.currentDirHandle);
       if (sessionData && sessionData.session && sessionData.session.lastOpenFile) {
         // Check if another instance changed the session file
         // We could add more sophisticated conflict detection here
