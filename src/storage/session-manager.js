@@ -93,6 +93,12 @@ function getSessionFilePath(getRelativeFilePathFn) {
  * @returns {Promise<void>}
  */
 export async function saveEditorStateToSession(getRelativeFilePathFn) {
+  // Don't save if TOC navigation is in progress
+  if (window.blockSessionSave) {
+    console.log('[Session] Skipping save - TOC navigation in progress');
+    return;
+  }
+
   // Don't save if we just restored state (wait for scroll animation to complete)
   // Block for 1 second (animation is 250ms, plus margin for safety)
   const timeSinceRestoration = Date.now() - appState.lastRestorationTime;

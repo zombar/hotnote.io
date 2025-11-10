@@ -169,4 +169,11 @@ export class EditorManager {
   isActive() {
     return this.currentEditor !== null && this.currentEditor.isActive();
   }
+
+  /**
+   * Get the currently active editor instance
+   */
+  getActiveEditor() {
+    return this.currentEditor;
+  }
 }

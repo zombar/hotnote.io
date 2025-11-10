@@ -113,7 +113,23 @@
       >
         <span class="material-symbols-outlined resize-grip">drag_indicator</span>
       </div>
-      <div id="editor" data-testid="editor"></div>
+      <div id="editor-wrapper">
+        <div id="markdown-sidebar" class="markdown-sidebar hidden" tabindex="-1">
+          <div id="markdown-toc" class="markdown-toc" tabindex="-1">
+            <h3 class="toc-title" tabindex="-1">Contents</h3>
+            <div id="toc-content" class="toc-content" tabindex="-1"></div>
+          </div>
+          <div id="suggested-links" class="suggested-links">
+            <h3 class="suggested-links-title">Related Files</h3>
+            <div id="suggested-links-content" class="suggested-links-content"></div>
+          </div>
+        </div>
+        <div id="editor" data-testid="editor"></div>
+        <div id="suggested-links-mobile" class="suggested-links-mobile hidden">
+          <h3 class="suggested-links-title">Related Files</h3>
+          <div id="suggested-links-mobile-content" class="suggested-links-content"></div>
+        </div>
+      </div>
     </div>
     <script type="module" src="/app.js"></script>
   </body>

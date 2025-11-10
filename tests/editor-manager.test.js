@@ -54,6 +54,10 @@ vi.mock('../src/editors/wysiwyg-view.js', () => ({
     isActive() {
       return true;
     }
+    getHeadings() {
+      return [];
+    }
+    scrollToPosition() {}
   },
 }));
 

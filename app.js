@@ -146,6 +146,14 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
     }
     // Save session state on content change
     debouncedSaveEditorState();
+
+    // Update TOC if in WYSIWYG mode for markdown files
+    if (
+      isMarkdownFile(appState.currentFilename) &&
+      appState.editorManager?.getMode() === 'wysiwyg'
+    ) {
+      debouncedUpdateTOC();
+    }
   };
 
   if (isMarkdownFile(filename)) {
@@ -164,10 +172,15 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
     );
     await appState.editorManager.ready();
     console.log('[Editor] EditorManager initialized');
+
+    // Initialize TOC and suggested links for markdown files
+    updateTOC();
+    await updateSuggestedLinks();
   } else {
     // Use CodeMirror directly for non-markdown files
     console.log('[Editor] Initializing CodeMirror for non-markdown file');
     await initCodeMirrorEditor(initialContent, filename, handleContentChange);
+    updateTOC(); // Hide TOC for non-markdown files
   }
 
   appState.isDirty = false;
@@ -559,6 +572,358 @@ const toggleRichMode = async () => {
   localStorage.setItem(`mode_${appState.currentFilename}`, newMode);
 
   updateRichToggleButton();
+  updateTOC(); // Update TOC after mode change
+  await updateSuggestedLinks(); // Update suggested links after mode change
+};
+
+// Build hierarchical structure from flat headings array
+const buildHeadingTree = (headings) => {
+  const root = { children: [], level: 0 };
+  const stack = [root];
+
+  headings.forEach((heading) => {
+    // Pop from stack until we find the parent level
+    while (stack.length > 1 && stack[stack.length - 1].level >= heading.level) {
+      stack.pop();
+    }
+
+    const parent = stack[stack.length - 1];
+    const node = { ...heading, children: [], collapsed: false };
+
+    if (!parent.children) {
+      parent.children = [];
+    }
+    parent.children.push(node);
+    stack.push(node);
+  });
+
+  return root.children;
+};
+
+// Render TOC tree with collapsible sections
+const renderTOCTree = (nodes, depth = 0) => {
+  if (!nodes || nodes.length === 0) return '';
+
+  const items = nodes
+    .map((node) => {
+      const hasChildren = node.children && node.children.length > 0;
+      const indent = depth * 16; // 16px per level (Material UI 8px grid)
+      const chevronIcon = node.collapsed ? 'add_box' : 'indeterminate_check_box';
+      const chevron = hasChildren
+        ? `<span class="toc-chevron material-symbols-outlined ${node.collapsed ? 'collapsed' : ''}" data-heading-id="${node.id}">${chevronIcon}</span>`
+        : '<span class="toc-chevron-spacer"></span>';
+
+      const childrenHtml =
+        hasChildren && !node.collapsed ? renderTOCTree(node.children, depth + 1) : '';
+
+      return `
+        <div class="toc-item-container" tabindex="-1">
+          <div class="toc-item" style="padding-left: ${indent}px" data-pos="${node.pos}" data-heading-id="${node.id}" data-level="${node.level}" tabindex="-1">
+            ${chevron}
+            <span class="toc-text" title="${node.text}" tabindex="-1">${node.text}</span>
+          </div>
+          ${childrenHtml}
+        </div>
+      `;
+    })
+    .join('');
+
+  return items;
+};
+
+// Update the TOC based on current editor state
+const updateTOC = () => {
+  const tocContent = document.getElementById('toc-content');
+  const markdownSidebar = document.getElementById('markdown-sidebar');
+
+  // Only show TOC in WYSIWYG mode for markdown files
+  const isWysiwygMode = appState.editorManager && appState.editorManager.getMode() === 'wysiwyg';
+  const isMarkdown = isMarkdownFile(appState.currentFilename);
+
+  if (!isWysiwygMode || !isMarkdown || !appState.editorManager) {
+    markdownSidebar.classList.add('hidden');
+    return;
+  }
+
+  // Show sidebar
+  markdownSidebar.classList.remove('hidden');
+
+  // Extract headings from WYSIWYG editor
+  const editor = appState.editorManager.getActiveEditor();
+  if (!editor || !editor.getHeadings) {
+    tocContent.innerHTML = '<p class="toc-empty">No headings found</p>';
+    return;
+  }
+
+  const headings = editor.getHeadings();
+  if (headings.length === 0) {
+    tocContent.innerHTML = '<p class="toc-empty">No headings found</p>';
+    return;
+  }
+
+  // Build and render tree
+  const tree = buildHeadingTree(headings);
+  tocContent.innerHTML = renderTOCTree(tree);
+
+  // Add event listeners for TOC items
+  attachTOCEventListeners();
+};
+
+// Attach click handlers to TOC items
+const attachTOCEventListeners = () => {
+  const tocItems = document.querySelectorAll('.toc-item');
+  const chevrons = document.querySelectorAll('.toc-chevron');
+
+  console.log('[TOC] Attaching event listeners to', tocItems.length, 'items');
+
+  // Click on heading text to scroll
+  tocItems.forEach((item) => {
+    const textSpan = item.querySelector('.toc-text');
+    if (textSpan) {
+      // Prevent mousedown from stealing focus from the editor
+      textSpan.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // Critical: prevents focus from leaving the editor
+        console.log('[TOC] Mousedown prevented - maintaining editor focus');
+      });
+
+      textSpan.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const pos = parseInt(item.dataset.pos, 10);
+        console.log('[TOC] Clicked heading at position:', pos);
+
+        const editor = appState.editorManager?.getActiveEditor();
+        console.log('[TOC] Editor manager:', appState.editorManager);
+        console.log('[TOC] Active editor:', editor);
+
+        if (editor && editor.scrollToPosition) {
+          // Block session saves during TOC navigation to prevent scroll reset
+          if (window.blockSessionSave) {
+            clearTimeout(window.blockSessionSave);
+          }
+          window.blockSessionSave = true;
+          console.log('[TOC] Session saves blocked during navigation');
+
+          // Scroll to the position (focus should be maintained by mousedown prevention)
+          console.log('[TOC] Calling scrollToPosition with:', pos);
+          editor.scrollToPosition(pos);
+
+          // Re-enable session saves after scroll completes (200ms should be enough)
+          setTimeout(() => {
+            window.blockSessionSave = false;
+            console.log('[TOC] Session saves re-enabled');
+          }, 200);
+
+          console.log('[TOC] Scroll completed, focus maintained by mousedown handler');
+        } else {
+          console.error('[TOC] Editor or scrollToPosition not available');
+        }
+      });
+    }
+  });
+
+  // Click on chevron to toggle collapse
+  chevrons.forEach((chevron) => {
+    // Prevent mousedown from stealing focus from the editor
+    chevron.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // Critical: prevents focus from leaving the editor
+    });
+
+    chevron.addEventListener('click', (e) => {
+      e.stopPropagation();
+      chevron.classList.toggle('collapsed');
+
+      // Toggle icon between add_box (collapsed) and indeterminate_check_box (expanded)
+      const isCollapsed = chevron.classList.contains('collapsed');
+      chevron.textContent = isCollapsed ? 'add_box' : 'indeterminate_check_box';
+
+      // Find and toggle the children container
+      const container = chevron.closest('.toc-item-container');
+      const nestedContainers = Array.from(
+        container.querySelectorAll(':scope > .toc-item-container')
+      );
+      nestedContainers.forEach((nested) => {
+        nested.classList.toggle('hidden');
+      });
+    });
+  });
+
+  // Prevent ALL mousedown events in the entire TOC area from stealing focus
+  // This must be done at the top level to catch all clicks including background
+  const markdownSidebar = document.getElementById('markdown-sidebar');
+  const tocContainer = document.getElementById('markdown-toc');
+  const tocContent = document.getElementById('toc-content');
+
+  console.log('[TOC] Setting up focus prevention on sidebar:', markdownSidebar);
+
+  // Apply to all TOC-related elements to be thorough
+  [markdownSidebar, tocContainer, tocContent].forEach((element) => {
+    if (element) {
+      // Remove any existing listener first to avoid duplicates
+      element.removeEventListener('mousedown', preventTOCMousedown, true);
+      // Add capture-phase listener
+      element.addEventListener('mousedown', preventTOCMousedown, true);
+      console.log('[TOC] Added mousedown prevention to:', element.id);
+    }
+  });
+
+  // Also add a document-level catch-all handler to prevent ANY clicks in TOC/editor areas from losing focus
+  // This catches clicks on scrollbars, padding, margins, or any other missed elements
+  document.addEventListener(
+    'mousedown',
+    (e) => {
+      const sidebar = document.getElementById('markdown-sidebar');
+      const editorWrapper = document.getElementById('editor');
+
+      // Check if the click is within the TOC sidebar or editor area
+      const inTOC = sidebar && sidebar.contains(e.target);
+      const inEditor = editorWrapper && editorWrapper.contains(e.target);
+
+      if (inTOC || inEditor) {
+        console.log(
+          '[Focus] Document-level mousedown in',
+          inTOC ? 'TOC' : 'Editor',
+          'area, target:',
+          e.target
+        );
+
+        // Only prevent default if clicking on non-interactive background elements
+        const isBackgroundElement =
+          e.target.id === 'markdown-sidebar' ||
+          e.target.id === 'markdown-toc' ||
+          e.target.id === 'toc-content' ||
+          e.target.id === 'editor' ||
+          e.target.classList.contains('markdown-sidebar') ||
+          e.target.classList.contains('toc-content') ||
+          e.target.classList.contains('toc-title');
+
+        if (isBackgroundElement) {
+          e.preventDefault();
+          console.log('[Focus] Prevented background click from stealing focus');
+        }
+
+        // Ensure editor maintains focus when clicking in these areas
+        // But don't call focus if we're clicking a TOC item (to avoid scroll interference)
+        const isTOCItem = e.target.closest('.toc-item') || e.target.classList.contains('toc-text');
+
+        if (!isTOCItem) {
+          const editor = appState.editorManager?.getActiveEditor();
+          if (editor && editor.focus) {
+            // Use a very short delay to let other handlers complete first
+            setTimeout(() => {
+              editor.focus();
+              console.log('[Focus] Editor re-focused from document-level handler');
+            }, 10);
+          }
+        }
+      }
+    },
+    true
+  ); // Capture phase
+};
+
+// Separate function to prevent mousedown from stealing focus
+function preventTOCMousedown(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  console.log(
+    '[TOC] Mousedown prevented on:',
+    e.target,
+    'target ID:',
+    e.target.id,
+    'target class:',
+    e.target.className,
+    'maintaining editor focus'
+  );
+
+  // NOTE: Do NOT call editor.focus() here!
+  // Calling focus scrolls to current cursor position, interfering with TOC navigation
+  // The e.preventDefault() is sufficient to maintain focus
+}
+
+// Update suggested links (other markdown files in the same folder)
+const updateSuggestedLinks = async () => {
+  const suggestedLinksContent = document.getElementById('suggested-links-content');
+  const suggestedLinksMobileContent = document.getElementById('suggested-links-mobile-content');
+  const suggestedLinksMobile = document.getElementById('suggested-links-mobile');
+
+  // Only show suggested links in WYSIWYG mode for markdown files
+  const isWysiwygMode = appState.editorManager && appState.editorManager.getMode() === 'wysiwyg';
+  const isMarkdown = isMarkdownFile(appState.currentFilename);
+
+  if (!isWysiwygMode || !isMarkdown || !appState.currentDirHandle) {
+    suggestedLinksMobile.classList.add('hidden');
+    return;
+  }
+
+  try {
+    const files = [];
+    for await (const entry of appState.currentDirHandle.values()) {
+      if (
+        entry.kind === 'file' &&
+        isMarkdownFile(entry.name) &&
+        entry.name !== appState.currentFilename
+      ) {
+        files.push(entry);
+      }
+    }
+
+    // Sort alphabetically
+    files.sort((a, b) => a.name.localeCompare(b.name));
+
+    if (files.length === 0) {
+      suggestedLinksContent.innerHTML =
+        '<p class="suggested-links-empty">No other markdown files</p>';
+      suggestedLinksMobileContent.innerHTML =
+        '<p class="suggested-links-empty">No other markdown files</p>';
+      suggestedLinksMobile.classList.add('hidden');
+      return;
+    }
+
+    // Show mobile container
+    suggestedLinksMobile.classList.remove('hidden');
+
+    // Render links
+    const linksHtml = files
+      .map((file) => {
+        return `<div class="suggested-link" data-filename="${file.name}" title="${file.name}">
+          <span class="material-symbols-outlined">description</span>
+          <span class="suggested-link-text">${file.name}</span>
+        </div>`;
+      })
+      .join('');
+
+    suggestedLinksContent.innerHTML = linksHtml;
+    suggestedLinksMobileContent.innerHTML = linksHtml;
+
+    // Attach click handlers
+    attachSuggestedLinksEventListeners();
+  } catch (error) {
+    console.error('[SuggestedLinks] Error reading directory:', error);
+    suggestedLinksContent.innerHTML = '<p class="suggested-links-empty">Error loading files</p>';
+    suggestedLinksMobileContent.innerHTML =
+      '<p class="suggested-links-empty">Error loading files</p>';
+  }
+};
+
+// Attach click handlers to suggested links
+const attachSuggestedLinksEventListeners = () => {
+  const links = document.querySelectorAll('.suggested-link');
+
+  links.forEach((link) => {
+    link.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const filename = link.dataset.filename;
+      if (filename && appState.currentDirHandle) {
+        try {
+          const fileHandle = await appState.currentDirHandle.getFileHandle(filename);
+          await openFileFromPicker(fileHandle);
+        } catch (error) {
+          console.error('[SuggestedLinks] Error opening file:', error);
+        }
+      }
+    });
+  });
 };
 
 // Navigate to a specific path index (breadcrumb click)
@@ -1756,6 +2121,9 @@ const showFileReloadNotification = () => {
 
 // Debounced version (save every 2 seconds)
 const debouncedSaveEditorState = createDebouncedSaveEditorState(getRelativeFilePath);
+
+// Debounced TOC update (update every 500ms after typing stops)
+const debouncedUpdateTOC = debounce(updateTOC, 500);
 
 // Fuzzy match helper - handles case-insensitive, substring, and space-as-wildcard matching
 const fuzzyMatch = (text, query) => {
@@ -2977,19 +3345,42 @@ function updateEditorBlurState() {
   const editorElement = document.getElementById('editor');
   if (!editorElement) return;
 
-  if (appState.focusManager.hasEditorFocus()) {
+  const hasEditorFocus = appState.focusManager.hasEditorFocus();
+  console.log(
+    '[Focus] updateEditorBlurState - hasEditorFocus:',
+    hasEditorFocus,
+    'activeElement:',
+    document.activeElement
+  );
+
+  if (hasEditorFocus) {
     editorElement.classList.remove('blurred');
   } else {
-    editorElement.classList.add('blurred');
+    // Only add blur if focus went to something meaningful (not null/body)
+    const activeElement = document.activeElement;
+    const isFocusOnNothing =
+      !activeElement || activeElement === document.body || activeElement.tagName === 'BODY';
+
+    if (isFocusOnNothing) {
+      // Focus went nowhere - don't blur, but also DON'T restore focus
+      // Restoring focus can trigger scroll resets during TOC navigation
+      console.log('[Focus] Focus went nowhere, maintaining current state without blur');
+      // Note: NOT calling editor.focus() here to avoid scroll interference
+    } else {
+      // Focus went to a real element (like search box, button, etc) - blur is OK
+      editorElement.classList.add('blurred');
+    }
   }
 }
 
 // Monitor focus changes to update blur state
-document.addEventListener('focusin', () => {
+document.addEventListener('focusin', (e) => {
+  console.log('[Focus] focusin event, target:', e.target);
   updateEditorBlurState();
 });
 
-document.addEventListener('focusout', () => {
+document.addEventListener('focusout', (e) => {
+  console.log('[Focus] focusout event, target:', e.target, 'relatedTarget:', e.relatedTarget);
   // Use setTimeout to allow focus to shift to new element
   setTimeout(() => {
     updateEditorBlurState();

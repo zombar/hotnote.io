@@ -10,7 +10,7 @@ We ❤️ lean software and dream of the days of MS Edit and Windows 3.11.
 
 ## Features
 
-- **Local files** - Direct filesystem access via File System Access API
+* **Local files** - Direct filesystem access via File System Access API
 
 - **WYSIWYG markdown** - Rich editor for .md files (toggle with source mode)
 

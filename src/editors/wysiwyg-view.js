@@ -188,10 +188,21 @@ export class WYSIWYGView {
     if (!this.editor) return;
 
     try {
-      const editorElement = this.container.querySelector('.milkdown .ProseMirror');
-      if (editorElement) {
-        editorElement.focus();
-      }
+      // Use ProseMirror's view.focus() for proper focus handling
+      this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        if (view && view.focus) {
+          view.focus();
+          console.log('[WYSIWYGView] Editor focused via ProseMirror API');
+        } else {
+          // Fallback to DOM focus
+          const editorElement = this.container.querySelector('.milkdown .ProseMirror');
+          if (editorElement) {
+            editorElement.focus();
+            console.log('[WYSIWYGView] Editor focused via DOM');
+          }
+        }
+      });
     } catch (error) {
       console.error('[WYSIWYGView] Error focusing editor:', error);
     }
@@ -218,5 +229,125 @@ export class WYSIWYGView {
    */
   isActive() {
     return this.editor !== null;
+  }
+
+  /**
+   * Extract headings from the document for TOC
+   * Returns array of {level, text, id, pos}
+   */
+  getHeadings() {
+    if (!this.editor) {
+      return [];
+    }
+
+    const headings = [];
+
+    try {
+      this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state } = view;
+        const { doc } = state;
+
+        doc.descendants((node, pos) => {
+          if (node.type.name === 'heading') {
+            const level = node.attrs.level;
+            const text = node.textContent;
+            // Create a simple ID from the text
+            const id = text
+              .toLowerCase()
+              .replace(/[^\w\s-]/g, '')
+              .replace(/\s+/g, '-');
+
+            headings.push({
+              level,
+              text,
+              id: `heading-${id}-${pos}`,
+              pos,
+            });
+          }
+        });
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error extracting headings:', error);
+    }
+
+    return headings;
+  }
+
+  /**
+   * Scroll to a specific position in the document
+   * Sets cursor at the position and scrolls to it
+   * Inspired by: scrollIntoView but works without requiring focus
+   */
+  scrollToPosition(pos) {
+    if (!this.editor) {
+      console.error('[WYSIWYGView] scrollToPosition: editor not initialized');
+      return;
+    }
+
+    console.log('[WYSIWYGView] scrollToPosition called with pos:', pos);
+
+    try {
+      this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state, dispatch } = view;
+        const { doc } = state;
+
+        console.log('[WYSIWYGView] Document size:', doc.content.size);
+
+        // Ensure position is valid
+        const safePos = Math.max(0, Math.min(pos, doc.content.size));
+        console.log('[WYSIWYGView] Safe position:', safePos);
+
+        // Create selection at that position
+        const selection = TextSelection.create(doc, safePos);
+        console.log('[WYSIWYGView] Created selection:', selection);
+
+        // Dispatch transaction WITHOUT scrollIntoView to avoid conflicts
+        const tr = state.tr.setSelection(selection);
+        dispatch(tr);
+        console.log('[WYSIWYGView] Dispatched transaction (selection only, no scroll)');
+
+        // Scroll to the position using coordsAtPos which gives us the exact coordinates
+        try {
+          const coords = view.coordsAtPos(safePos);
+          const scroller = this.container.querySelector('.milkdown');
+
+          if (scroller && coords) {
+            // Calculate scroll position to center the target in viewport
+            const scrollerRect = scroller.getBoundingClientRect();
+            const targetScrollTop =
+              coords.top - scrollerRect.top + scroller.scrollTop - scrollerRect.height / 2;
+
+            console.log('[WYSIWYGView] Scrolling to coordinates:', {
+              coordsTop: coords.top,
+              scrollerTop: scrollerRect.top,
+              currentScroll: scroller.scrollTop,
+              targetScroll: targetScrollTop,
+            });
+
+            // Scroll to the calculated position
+            scroller.scrollTop = targetScrollTop;
+
+            console.log('[WYSIWYGView] Scrolled to position:', safePos);
+
+            // Verify scroll actually happened
+            setTimeout(() => {
+              const scrollPos = this.getScrollPosition();
+              console.log('[WYSIWYGView] Final scroll position:', scrollPos);
+            }, 50);
+          } else {
+            console.warn(
+              '[WYSIWYGView] Could not get coordinates or scroller for position:',
+              safePos
+            );
+          }
+        } catch (error) {
+          console.warn('[WYSIWYGView] Could not perform scroll:', error);
+        }
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error scrolling to position:', error);
+    }
   }
 }

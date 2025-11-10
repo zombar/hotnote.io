@@ -1,4 +1,4 @@
-/* hotnote styles - brand themed syntax highlighting */
+/* hotnote styles -- brand themed syntax highlighting */
 * {
   margin: 0;
   padding: 0;
@@ -1588,21 +1588,15 @@ button:disabled:hover {
     'Apple Color Emoji', 'Segoe UI Emoji';
   font-size: 1rem;
   line-height: 1.6;
-  padding: 0 1.5rem;
+  padding: 0 15% 0 1.5rem;
   overflow: auto;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start; /* Left-align content, scrollbar at right edge */
 }
 
 .milkdown > * {
   width: 100%;
-  max-width: 700px;
-}
-
-@media (width >= 1400px) {
-  .milkdown > * {
-    max-width: 50%;
-  }
+  max-width: none; /* Remove constraint to allow full width */
 }
 
 @media (width <= 768px) {
@@ -1846,4 +1840,280 @@ button:disabled:hover {
 .file-reload-toast.show {
   opacity: 0.9;
   transform: translateY(0);
+}
+
+/* Editor wrapper with TOC */
+#editor-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Markdown sidebar (TOC + Suggested Links) */
+.markdown-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 300px; /* Increased by 25% from 240px */
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border);
+
+  /* Prevent the sidebar and all its children from being focusable */
+  user-select: none;
+  overflow: hidden auto;
+  flex-shrink: 0;
+  padding: 20px 0.5em; /* 0.5em padding on left and right */
+  gap: 28px;
+}
+
+.markdown-sidebar.hidden {
+  display: none;
+}
+
+/* TOC Section */
+.markdown-toc {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.toc-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+  padding: 0 8px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.toc-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* Reduced from 4px for tighter spacing */
+}
+
+.toc-item-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* Reduced from 4px for tighter spacing */
+}
+
+.toc-item-container.hidden {
+  display: none;
+}
+
+.toc-item {
+  display: flex;
+  align-items: center;
+  gap: 6px; /* Reduced from 8px for tighter layout */
+  padding: 8px; /* Reduced padding for better alignment */
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px; /* Slightly smaller for more compact look */
+  line-height: 1.4;
+  color: var(--text-primary);
+  min-height: 36px; /* Reduced from 40px */
+  user-select: none;
+}
+
+.toc-item:hover {
+  background-color: var(--bg-secondary);
+}
+
+.toc-item:active {
+  transform: scale(0.98);
+}
+
+.toc-chevron {
+  font-size: 16px; /* Material Icons look better at 16px */
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s ease;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toc-chevron:hover {
+  color: var(--text-primary);
+}
+
+.toc-chevron.collapsed {
+  /* No rotation - we swap icons instead */
+}
+
+.toc-chevron-spacer {
+  width: 16px; /* Reduced from 20px */
+  flex-shrink: 0;
+}
+
+.toc-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toc-text:hover {
+  color: var(--brand);
+}
+
+.toc-empty {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 16px 12px;
+  margin: 0;
+  font-style: italic;
+  text-align: center;
+}
+
+/* Suggested Links Section */
+.suggested-links {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.suggested-links-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+  padding: 0 12px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.suggested-links-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.suggested-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  min-height: 40px;
+  user-select: none;
+}
+
+.suggested-link:hover {
+  background-color: var(--bg-secondary);
+}
+
+.suggested-link:active {
+  transform: scale(0.98);
+}
+
+.suggested-link .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.suggested-link-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggested-links-empty {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 16px 12px;
+  margin: 0;
+  font-style: italic;
+  text-align: center;
+}
+
+/* Mobile suggested links (hidden on desktop) */
+.suggested-links-mobile {
+  display: none;
+  padding: 24px 16px;
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border);
+  gap: 16px;
+}
+
+.suggested-links-mobile.hidden {
+  display: none !important;
+}
+
+/* Desktop layout: TOC left, document right */
+@media (width >= 769px) {
+  #editor-wrapper {
+    flex-direction: row;
+    width: 100%;
+  }
+
+  #editor {
+    flex: 1;
+    overflow: hidden auto;
+  }
+
+  .markdown-sidebar {
+    order: -1; /* Put sidebar on the left */
+  }
+
+  .suggested-links-mobile {
+    display: none !important; /* Never show mobile version on desktop */
+  }
+}
+
+/* Mobile layout: TOC at top, document in middle, suggested links at bottom */
+@media (width <= 768px) {
+  #editor-wrapper {
+    flex-direction: column;
+  }
+
+  .markdown-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 40vh;
+    order: -1; /* Put at top */
+    padding: 16px;
+    gap: 24px;
+  }
+
+  .markdown-sidebar .suggested-links {
+    display: none; /* Hide desktop version of suggested links */
+  }
+
+  #editor {
+    flex: 1;
+    overflow-y: auto;
+    order: 0;
+  }
+
+  .suggested-links-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    order: 1; /* Put at bottom */
+  }
+
+  .suggested-links-mobile.hidden {
+    display: none !important;
+  }
 }
