@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0](https://github.com/zombar/hotnote.io/compare/v1.13.0...v1.14.0) (2025-11-10)
+
+
+### Features
+
+* use Oswald for logo ([#58](https://github.com/zombar/hotnote.io/issues/58)) ([56806db](https://github.com/zombar/hotnote.io/commit/56806db1750e28b61896a28650750a9e93f32240))
+
 ## [1.13.0](https://github.com/zombar/hotnote.io/compare/v1.12.0...v1.13.0) (2025-11-09)
 
 
