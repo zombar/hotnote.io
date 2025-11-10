@@ -198,7 +198,7 @@ header:has(.app-logo.compact) {
 .app-logo {
   display: flex;
   align-items: center;
-  font-family: Rajdhani, Impact, 'Arial Black', sans-serif;
+  font-family: Oswald, Impact, sans-serif;
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: 0.056em;
