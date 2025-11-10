@@ -1,5 +1,15 @@
 import { EditorManager } from './src/editors/editor-manager.js';
 import { debounce } from './src/utils/helpers.js';
+import { FileSystemAdapter } from './src/fs/filesystem-adapter.js';
+import { createTrashManager } from './src/fs/trash-manager.js';
+import {
+  brandHighlightStyle,
+  brandHighlightStyleDark,
+  getLanguageExtension,
+  isMarkdownFile,
+} from './src/editor/language-support.js';
+import { createAutosaveManager, animateAutosaveLabel } from './src/editor/autosave.js';
+import { createFileSyncManager } from './src/storage/file-sync.js';
 import { appState } from './src/state/app-state.js';
 import {
   getFilePathKey as getFilePathKeyCore,
@@ -29,15 +39,7 @@ import {
   highlightActiveLine,
 } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
-import {
-  syntaxHighlighting,
-  HighlightStyle,
-  StreamLanguage,
-  bracketMatching,
-  foldGutter,
-  foldKeymap,
-} from '@codemirror/language';
-import { tags } from '@lezer/highlight';
+import { syntaxHighlighting, bracketMatching, foldGutter, foldKeymap } from '@codemirror/language';
 import {
   defaultKeymap,
   history as codeMirrorHistory,
@@ -52,98 +54,9 @@ import {
   closeBracketsKeymap,
 } from '@codemirror/autocomplete';
 import { lintKeymap } from '@codemirror/lint';
-import { javascript } from '@codemirror/lang-javascript';
-import { python } from '@codemirror/lang-python';
-import { html } from '@codemirror/lang-html';
-import { css } from '@codemirror/lang-css';
-import { json } from '@codemirror/lang-json';
-import { markdown } from '@codemirror/lang-markdown';
-import { go } from '@codemirror/lang-go';
-import { rust } from '@codemirror/lang-rust';
-import { php } from '@codemirror/lang-php';
-import { java } from '@codemirror/lang-java';
-import { cpp } from '@codemirror/lang-cpp';
-import { xml } from '@codemirror/lang-xml';
-import { yaml } from '@codemirror/lang-yaml';
-import { shell as shellMode } from '@codemirror/legacy-modes/mode/shell';
-import { ruby as rubyMode } from '@codemirror/legacy-modes/mode/ruby';
-import { groovy as groovyMode } from '@codemirror/legacy-modes/mode/groovy';
-import { nginx as nginxMode } from '@codemirror/legacy-modes/mode/nginx';
-import { python as pythonMode } from '@codemirror/legacy-modes/mode/python';
-
-// File System Adapter - Browser File System Access API
-const FileSystemAdapter = {
-  // Check if file system access is supported
-  isSupported() {
-    return 'showOpenFilePicker' in window && 'showDirectoryPicker' in window;
-  },
-
-  // Open directory picker
-  async openDirectory() {
-    const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-    return dirHandle;
-  },
-
-  // List directory entries
-  async listDirectory(dirHandle) {
-    const entries = [];
-    for await (const entry of dirHandle.values()) {
-      entries.push(entry);
-    }
-    return entries;
-  },
-
-  // Read file content
-  async readFile(fileHandle) {
-    const file = await fileHandle.getFile();
-    return await file.text();
-  },
-
-  // Write file content
-  async writeFile(fileHandle, content) {
-    const writable = await fileHandle.createWritable();
-    await writable.write(content);
-    await writable.close();
-  },
-
-  // Save file picker (for new files)
-  async saveFilePicker(suggestedName) {
-    return await window.showSaveFilePicker({
-      types: [
-        {
-          description: 'Text Files',
-          accept: { 'text/*': ['.txt', '.md', '.js', '.py', '.html', '.css', '.json'] },
-        },
-      ],
-      suggestedName: suggestedName,
-    });
-  },
-
-  // Get file metadata (name, etc.)
-  async getFileMetadata(fileHandle) {
-    const file = await fileHandle.getFile();
-    return {
-      name: file.name,
-      size: file.size,
-      lastModified: file.lastModified,
-    };
-  },
-
-  // Navigate to subdirectory
-  async navigateToSubdirectory(parentHandle, name) {
-    return await parentHandle.getDirectoryHandle(name);
-  },
-};
 
 // Initialize session manager with FileSystemAdapter
 initSessionManager(FileSystemAdapter);
-
-// File polling and synchronization
-let lastKnownModified = null; // Timestamp when file was last loaded/saved
-let lastModifiedLocal = null; // Timestamp of last local edit
-let lastUserActivityTime = Date.now(); // Timestamp of last user interaction
-let filePollingInterval = null; // Interval ID for file polling
-let isPollingPaused = false; // Flag to pause polling during file picker operations
 
 // Temp storage wrappers using core.js functions
 const getFilePathKey = () => {
@@ -182,124 +95,6 @@ const hasTempChanges = (key) => {
   return hasTempChangesCore(key);
 };
 
-// Custom syntax highlighting using brand colors (light mode - darker muted)
-const brandHighlightStyle = HighlightStyle.define([
-  { tag: tags.keyword, color: '#a65580', fontWeight: '500' }, // darker muted pink
-  { tag: tags.operator, color: '#7a65ad' }, // darker muted purple
-  { tag: tags.variableName, color: '#5a9cb8' }, // darker muted cyan
-  { tag: tags.string, color: '#5a9cb8' }, // darker muted cyan
-  { tag: tags.number, color: '#7a65ad' }, // darker muted purple
-  { tag: tags.bool, color: '#7a65ad' }, // darker muted purple
-  { tag: tags.comment, color: '#999999', fontStyle: 'italic' }, // gray
-  { tag: tags.tagName, color: '#5a9cb8' }, // darker muted cyan
-  { tag: tags.attributeName, color: '#a65580' }, // darker muted pink
-  { tag: tags.propertyName, color: '#5a9cb8' }, // darker muted cyan
-  { tag: tags.function(tags.variableName), color: '#5a9cb8', fontWeight: '500' }, // darker muted cyan
-  { tag: tags.className, color: '#a65580' }, // darker muted pink
-  { tag: tags.typeName, color: '#a65580' }, // darker muted pink
-  { tag: tags.regexp, color: '#7a65ad' }, // darker muted purple
-  { tag: tags.escape, color: '#a65580' }, // darker muted pink
-  { tag: tags.meta, color: '#5a9cb8' }, // darker muted cyan
-  { tag: tags.constant(tags.variableName), color: '#7a65ad' }, // darker muted purple
-]);
-
-// Custom syntax highlighting using brand colors (dark mode - lighter muted)
-const brandHighlightStyleDark = HighlightStyle.define([
-  { tag: tags.keyword, color: '#e8bcd4', fontWeight: '500' }, // lighter muted pink
-  { tag: tags.operator, color: '#c8bce8' }, // lighter muted purple
-  { tag: tags.variableName, color: '#b8e5f2' }, // lighter muted cyan
-  { tag: tags.string, color: '#b8e5f2' }, // lighter muted cyan
-  { tag: tags.number, color: '#c8bce8' }, // lighter muted purple
-  { tag: tags.bool, color: '#c8bce8' }, // lighter muted purple
-  { tag: tags.comment, color: '#888888', fontStyle: 'italic' }, // gray
-  { tag: tags.tagName, color: '#b8e5f2' }, // lighter muted cyan
-  { tag: tags.attributeName, color: '#e8bcd4' }, // lighter muted pink
-  { tag: tags.propertyName, color: '#b8e5f2' }, // lighter muted cyan
-  { tag: tags.function(tags.variableName), color: '#b8e5f2', fontWeight: '500' }, // lighter muted cyan
-  { tag: tags.className, color: '#e8bcd4' }, // lighter muted pink
-  { tag: tags.typeName, color: '#e8bcd4' }, // lighter muted pink
-  { tag: tags.regexp, color: '#c8bce8' }, // lighter muted purple
-  { tag: tags.escape, color: '#e8bcd4' }, // lighter muted pink
-  { tag: tags.meta, color: '#b8e5f2' }, // lighter muted cyan
-  { tag: tags.constant(tags.variableName), color: '#c8bce8' }, // lighter muted purple
-]);
-
-// Language detection based on file extension
-const getLanguageExtension = (filename) => {
-  // Check for special filenames without extensions
-  const basename = filename.split('/').pop().toLowerCase();
-
-  // Bazel files (use Python/Starlark syntax)
-  if (
-    basename === 'build' ||
-    basename === 'build.bazel' ||
-    basename === 'workspace' ||
-    basename === 'workspace.bazel'
-  ) {
-    return StreamLanguage.define(pythonMode);
-  }
-
-  // Jenkinsfile
-  if (basename === 'jenkinsfile') {
-    return StreamLanguage.define(groovyMode);
-  }
-
-  // Nginx config
-  if (basename === 'nginx.conf' || basename.startsWith('nginx.')) {
-    return StreamLanguage.define(nginxMode);
-  }
-
-  // .gitignore and other ignore files
-  if (basename === '.gitignore' || basename.endsWith('ignore')) {
-    return StreamLanguage.define(shellMode);
-  }
-
-  const ext = filename.split('.').pop().toLowerCase();
-  const langMap = {
-    js: javascript(),
-    jsx: javascript({ jsx: true }),
-    ts: javascript({ typescript: true }),
-    tsx: javascript({ typescript: true, jsx: true }),
-    py: python(),
-    go: go(),
-    rs: rust(),
-    php: php(),
-    java: java(),
-    groovy: StreamLanguage.define(groovyMode),
-    c: cpp(),
-    cpp: cpp(),
-    cc: cpp(),
-    cxx: cpp(),
-    h: cpp(),
-    hpp: cpp(),
-    xml: xml(),
-    yaml: yaml(),
-    yml: yaml(),
-    sh: StreamLanguage.define(shellMode),
-    bash: StreamLanguage.define(shellMode),
-    rb: StreamLanguage.define(rubyMode),
-    html: html(),
-    htm: html(),
-    css: css(),
-    scss: css(),
-    json: json(),
-    md: markdown(),
-    markdown: markdown(),
-    bzl: StreamLanguage.define(pythonMode), // Bazel/Starlark files
-    conf: StreamLanguage.define(nginxMode), // Nginx config files
-    tf: javascript(), // Terraform files (HCL syntax similar to JavaScript)
-    tfvars: javascript(), // Terraform variable files
-    hcl: javascript(), // HashiCorp Configuration Language
-  };
-  return langMap[ext] || [];
-};
-
-// Helper: Check if file is markdown
-const isMarkdownFile = (filename) => {
-  const ext = filename.split('.').pop().toLowerCase();
-  return ext === 'md' || ext === 'markdown';
-};
-
 // Helper: Get current editor content
 const getEditorContent = () => {
   if (appState.editorManager) {
@@ -331,8 +126,8 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
   // onChange callback for content changes
   const handleContentChange = (content) => {
     // Track user activity for file polling
-    updateUserActivity();
-    lastModifiedLocal = Date.now();
+    fileSyncManager.updateUserActivity();
+    fileSyncManager.updateLastModifiedLocal(Date.now());
 
     if (content === appState.originalContent) {
       if (appState.isDirty) {
@@ -459,7 +254,7 @@ const initCodeMirrorEditor = async (
 
       // Save editor state on selection change or scroll
       if (update.selectionSet || update.geometryChanged) {
-        updateUserActivity(); // Track cursor/scroll activity
+        fileSyncManager.updateUserActivity(); // Track cursor/scroll activity
         debouncedSaveEditorState();
       }
     }),
@@ -1090,7 +885,9 @@ const openFolder = async () => {
 
   try {
     // Cleanup trash from previous folder before opening new one
-    await cleanupTrash();
+    if (appState.currentDirHandle) {
+      await trashManager.cleanup(appState.currentDirHandle);
+    }
 
     // Save temp changes if file is dirty
     if (appState.isDirty && appState.currentFileHandle) {
@@ -1227,7 +1024,7 @@ const openFolder = async () => {
 // Show file picker for a directory
 const showFilePicker = async (dirHandle) => {
   // Pause file polling while picker is open
-  pauseFilePolling();
+  fileSyncManager.pause();
 
   const picker = document.getElementById('file-picker');
   const resizeHandle = document.getElementById('file-picker-resize-handle');
@@ -1351,7 +1148,7 @@ window.hideFilePicker = () => {
   document.getElementById('file-picker-resize-handle').classList.add('hidden');
 
   // Resume file polling when picker is closed
-  resumeFilePolling();
+  fileSyncManager.resume();
 
   // Restore focus to editor if a file is currently open
   if (appState.currentFileHandle) {
@@ -1451,8 +1248,202 @@ const initFilePickerResize = () => {
   document.addEventListener('mouseup', onMouseUp);
 };
 
-// Global variable for trash handle
-let trashDirHandle = null;
+// Create trash manager with callbacks
+const trashManager = createTrashManager({
+  onFileDeleted: (filename) => {
+    // Handle file deleted - close if currently open
+    if (appState.currentFileHandle && appState.currentFileHandle.name === filename) {
+      appState.currentFileHandle = null;
+      appState.currentFilename = '';
+      appState.isDirty = false;
+      initEditor('', 'untitled').then(() => updateBreadcrumb());
+    }
+
+    // Clear temp changes for deleted file
+    const pathParts = appState.currentPath.map((p) => p.name);
+    pathParts.push(filename);
+    const filePathKey = pathParts.join('/');
+    clearTempChanges(filePathKey);
+  },
+  onFileRestored: () => {
+    // File restored - no special action needed, refreshFilePicker handles UI
+  },
+  refreshFilePicker: async (dirHandle) => {
+    await showFilePicker(dirHandle);
+  },
+});
+
+// Create autosave manager with callbacks
+const autosaveManager = createAutosaveManager({
+  interval: 2000,
+  enabled: appState.autosaveEnabled,
+  onSave: async () => {
+    await saveFile();
+  },
+  shouldSave: () => {
+    return appState.isDirty && appState.currentFileHandle;
+  },
+});
+
+// Create file sync manager with callbacks
+const fileSyncManager = createFileSyncManager({
+  interval: 2500,
+  idleThreshold: 4000,
+  getFileHandle: () => appState.currentFileHandle,
+  getFileMetadata: async (handle) => await FileSystemAdapter.getFileMetadata(handle),
+  readFile: async (handle) => await FileSystemAdapter.readFile(handle),
+  getCurrentEditorState: () => {
+    let scrollTop = 0;
+    let cursorLine = 0;
+    let cursorColumn = 0;
+
+    if (appState.editorManager) {
+      // Capture from markdown editor
+      if (appState.editorManager.currentMode === 'wysiwyg') {
+        scrollTop = appState.editorManager.getScrollPosition();
+      } else {
+        const view = appState.editorManager.currentEditor?.view;
+        if (view) {
+          scrollTop = view.scrollDOM.scrollTop;
+        }
+      }
+      const cursor = appState.editorManager.getCursor();
+      cursorLine = cursor.line;
+      cursorColumn = cursor.column;
+    } else if (appState.editorView) {
+      // Capture from regular CodeMirror
+      scrollTop = appState.editorView.scrollDOM.scrollTop;
+      const pos = appState.editorView.state.selection.main.head;
+      const line = appState.editorView.state.doc.lineAt(pos);
+      cursorLine = line.number - 1;
+      cursorColumn = pos - line.from;
+    }
+
+    return { scrollTop, cursorLine, cursorColumn };
+  },
+  updateEditorContent: async (freshContent, editorState) => {
+    const { scrollTop, cursorLine, cursorColumn } = editorState;
+
+    if (appState.editorManager) {
+      const wasWYSIWYG = appState.editorManager.currentMode === 'wysiwyg';
+
+      if (wasWYSIWYG) {
+        // For WYSIWYG: destroy and recreate to avoid duplicates
+        appState.editorManager.currentEditor.destroy();
+        appState.editorManager.container.innerHTML = '';
+
+        await appState.editorManager.init('wysiwyg', freshContent);
+        appState.focusManager.setEditors(appState.editorManager, null);
+
+        await appState.editorManager.ready();
+
+        // Restore scroll and cursor after render
+        setTimeout(() => {
+          if (appState.editorManager.currentEditor) {
+            appState.editorManager.currentEditor.setScrollPosition(scrollTop);
+            try {
+              appState.editorManager.setCursor(cursorLine, cursorColumn);
+            } catch (_e) {
+              // Line might not exist in new content
+            }
+          }
+        }, 100);
+      } else {
+        // Source mode: update with scroll preservation
+        const view = appState.editorManager.currentEditor?.view;
+        if (view) {
+          view.dispatch({
+            changes: {
+              from: 0,
+              to: view.state.doc.length,
+              insert: freshContent,
+            },
+          });
+
+          requestAnimationFrame(() => {
+            view.scrollDOM.scrollTop = scrollTop;
+
+            try {
+              const lineObj = view.state.doc.line(cursorLine + 1);
+              const pos = lineObj.from + Math.min(cursorColumn, lineObj.length);
+              view.dispatch({
+                selection: { anchor: pos, head: pos },
+              });
+            } catch (_e) {
+              // Line might not exist in new content
+            }
+          });
+        }
+      }
+    } else if (appState.editorView) {
+      // For non-markdown files: update with scroll and cursor preservation
+      appState.editorView.dispatch({
+        changes: {
+          from: 0,
+          to: appState.editorView.state.doc.length,
+          insert: freshContent,
+        },
+      });
+
+      requestAnimationFrame(() => {
+        appState.editorView.scrollDOM.scrollTop = scrollTop;
+
+        try {
+          const lineObj = appState.editorView.state.doc.line(cursorLine + 1);
+          const pos = lineObj.from + Math.min(cursorColumn, lineObj.length);
+          appState.editorView.dispatch({
+            selection: { anchor: pos, head: pos },
+          });
+        } catch (_e) {
+          console.log('[File Sync] Could not restore cursor');
+        }
+      });
+    }
+
+    // Update app state
+    appState.originalContent = freshContent;
+    appState.isDirty = false;
+
+    // Clear temp changes
+    const pathKey = getFilePathKey();
+    if (pathKey) {
+      clearTempChanges(pathKey);
+    }
+
+    // Update UI
+    updateBreadcrumb();
+  },
+  onFileReloaded: () => {
+    showFileReloadNotification();
+  },
+  onSyncStart: () => {
+    const editorElement = document.getElementById('editor');
+    const breadcrumb = document.getElementById('breadcrumb');
+    if (editorElement) {
+      editorElement.classList.add('syncing');
+    }
+    if (breadcrumb) {
+      breadcrumb.classList.add('syncing');
+    }
+  },
+  onSyncEnd: () => {
+    const editorElement = document.getElementById('editor');
+    const breadcrumb = document.getElementById('breadcrumb');
+    if (editorElement) {
+      editorElement.classList.remove('syncing');
+      editorElement.classList.remove('blurred');
+    }
+    if (breadcrumb) {
+      breadcrumb.classList.remove('syncing');
+    }
+
+    // Restore focus to editor
+    appState.focusManager.focusEditor({ delay: 50, reason: 'file-synced' });
+  },
+  onSyncError: () => {
+    // Errors are already logged by FileSyncManager
+  },
+});
 
 // Show delete confirmation inline
 const showDeleteConfirmation = (item, entry, metadata, lockIcon) => {
@@ -1480,8 +1471,12 @@ const showDeleteConfirmation = (item, entry, metadata, lockIcon) => {
   confirmBtn.appendChild(confirmIcon);
   confirmBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    await moveToTrash(entry);
-    showUndoSnackbar(entry.name, entry);
+    try {
+      await trashManager.moveToTrash(appState.currentDirHandle, entry);
+      trashManager.showUndoSnackbar(entry.name, appState.currentDirHandle);
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
   const cancelBtn = document.createElement('button');
@@ -1503,135 +1498,6 @@ const showDeleteConfirmation = (item, entry, metadata, lockIcon) => {
   confirmContainer.appendChild(confirmBtn);
   confirmContainer.appendChild(cancelBtn);
   item.appendChild(confirmContainer);
-};
-
-// Move file to trash folder
-const moveToTrash = async (fileHandle) => {
-  try {
-    // Create .trash folder if it doesn't exist
-    if (!trashDirHandle) {
-      trashDirHandle = await appState.currentDirHandle.getDirectoryHandle('.trash', {
-        create: true,
-      });
-    }
-
-    // Read file contents
-    const file = await fileHandle.getFile();
-    const contents = await file.text();
-
-    // Create file in trash with same name
-    const trashFileHandle = await trashDirHandle.getFileHandle(fileHandle.name, { create: true });
-    const writable = await trashFileHandle.createWritable();
-    await writable.write(contents);
-    await writable.close();
-
-    // Delete from original location
-    await appState.currentDirHandle.removeEntry(fileHandle.name);
-
-    // If the deleted file is currently open, close it
-    if (appState.currentFileHandle && appState.currentFileHandle.name === fileHandle.name) {
-      appState.currentFileHandle = null;
-      appState.currentFilename = '';
-      appState.isDirty = false;
-      await initEditor('', 'untitled');
-      updateBreadcrumb();
-    }
-
-    // Clear temp changes for this file
-    const pathParts = appState.currentPath.map((p) => p.name);
-    pathParts.push(fileHandle.name);
-    const filePathKey = pathParts.join('/');
-    clearTempChanges(filePathKey);
-
-    // Refresh the file picker
-    await showFilePicker(appState.currentDirHandle);
-  } catch (err) {
-    console.error('Error moving file to trash:', err);
-    alert('Error deleting file: ' + err.message);
-  }
-};
-
-// Restore file from trash
-const restoreFromTrash = async (filename) => {
-  try {
-    if (!trashDirHandle) return;
-
-    // Read file from trash
-    const trashFileHandle = await trashDirHandle.getFileHandle(filename);
-    const file = await trashFileHandle.getFile();
-    const contents = await file.text();
-
-    // Restore to original location
-    const restoredFileHandle = await appState.currentDirHandle.getFileHandle(filename, {
-      create: true,
-    });
-    const writable = await restoredFileHandle.createWritable();
-    await writable.write(contents);
-    await writable.close();
-
-    // Delete from trash
-    await trashDirHandle.removeEntry(filename);
-
-    // Refresh the file picker
-    await showFilePicker(appState.currentDirHandle);
-  } catch (err) {
-    console.error('Error restoring file from trash:', err);
-    alert('Error restoring file: ' + err.message);
-  }
-};
-
-// Show undo snackbar
-const showUndoSnackbar = (filename, _fileHandle) => {
-  // Remove existing snackbar if any
-  const existingSnackbar = document.querySelector('.snackbar');
-  if (existingSnackbar) {
-    existingSnackbar.remove();
-  }
-
-  // Create snackbar
-  const snackbar = document.createElement('div');
-  snackbar.className = 'snackbar';
-
-  const message = document.createElement('span');
-  message.className = 'snackbar-message';
-  message.textContent = `Deleted ${filename}`;
-
-  const undoBtn = document.createElement('button');
-  undoBtn.className = 'snackbar-action';
-  undoBtn.textContent = 'UNDO';
-  undoBtn.addEventListener('click', async () => {
-    await restoreFromTrash(filename);
-    snackbar.remove();
-  });
-
-  snackbar.appendChild(message);
-  snackbar.appendChild(undoBtn);
-  document.body.appendChild(snackbar);
-
-  // Show snackbar with animation
-  setTimeout(() => {
-    snackbar.classList.add('visible');
-  }, 10);
-
-  // Auto-dismiss after 10 seconds
-  setTimeout(() => {
-    snackbar.classList.remove('visible');
-    setTimeout(() => {
-      snackbar.remove();
-    }, 200);
-  }, 10000);
-};
-
-// Cleanup trash folder
-const cleanupTrash = async () => {
-  try {
-    if (trashDirHandle && appState.currentDirHandle) {
-      await appState.currentDirHandle.removeEntry('.trash', { recursive: true });
-      trashDirHandle = null;
-    }
-  } catch (err) {
-    console.error('Error cleaning up trash:', err);
-  }
 };
 
 // Navigate to a subdirectory
@@ -1710,8 +1576,8 @@ const openFileFromPicker = async (fileHandle) => {
 
     // Initialize file modification tracking
     const metadata = await FileSystemAdapter.getFileMetadata(fileHandle);
-    lastKnownModified = metadata.lastModified;
-    lastModifiedLocal = null;
+    fileSyncManager.updateLastKnownModified(metadata.lastModified);
+    fileSyncManager.updateLastModifiedLocal(null);
 
     // Check for temp changes
     const pathKey = getFilePathKey();
@@ -1749,7 +1615,7 @@ const openFileFromPicker = async (fileHandle) => {
     hideFilePicker();
 
     // Start file polling for external changes
-    startFilePolling();
+    fileSyncManager.start();
 
     // Restore focus to editor after opening file
     appState.focusManager.focusEditor({ delay: 100, reason: 'file-opened' });
@@ -1850,8 +1716,8 @@ const saveFile = async () => {
 
     // Update file modification tracking
     const metadata = await FileSystemAdapter.getFileMetadata(appState.currentFileHandle);
-    lastKnownModified = metadata.lastModified;
-    lastModifiedLocal = null; // Clear since we just saved
+    fileSyncManager.updateLastKnownModified(metadata.lastModified);
+    fileSyncManager.updateLastModifiedLocal(null); // Clear since we just saved
 
     // Clear temp changes after successful save
     const pathKey = getFilePathKey();
@@ -1865,247 +1731,6 @@ const saveFile = async () => {
       console.error('Error saving file:', err);
       alert('Error saving file: ' + err.message);
     }
-  }
-};
-
-// Autosave functionality
-const startAutosave = () => {
-  if (appState.autosaveInterval) {
-    clearInterval(appState.autosaveInterval);
-  }
-
-  appState.autosaveInterval = setInterval(async () => {
-    if (appState.isDirty && appState.currentFileHandle) {
-      await saveFile();
-    }
-  }, 2000); // Save every 2 seconds if dirty
-};
-
-const stopAutosave = () => {
-  if (appState.autosaveInterval) {
-    clearInterval(appState.autosaveInterval);
-    appState.autosaveInterval = null;
-  }
-};
-
-const toggleAutosave = (enabled) => {
-  appState.autosaveEnabled = enabled;
-  if (enabled) {
-    startAutosave();
-  } else {
-    stopAutosave();
-  }
-};
-
-// User activity tracking
-const updateUserActivity = () => {
-  lastUserActivityTime = Date.now();
-};
-
-const isUserIdle = () => {
-  const idleThreshold = 4000; // 4 seconds (between 3-5 as per requirements)
-  return Date.now() - lastUserActivityTime > idleThreshold;
-};
-
-// File polling utilities
-const shouldPollFile = () => {
-  return (
-    appState.currentFileHandle !== null && // File is open
-    !isPollingPaused && // Not paused during file picker
-    isUserIdle() // User is idle
-  );
-};
-
-const checkFileForExternalChanges = async () => {
-  if (!shouldPollFile()) {
-    return;
-  }
-
-  try {
-    const metadata = await FileSystemAdapter.getFileMetadata(appState.currentFileHandle);
-    const externalModified = metadata.lastModified;
-
-    // Check if file was modified externally
-    if (lastKnownModified && externalModified > lastKnownModified) {
-      // File changed externally - need to reconcile
-      await reconcileFileChanges(externalModified);
-    }
-  } catch (err) {
-    console.error('[File Sync] Error checking file for external changes:', err);
-    // File might have been deleted - stop polling
-    if (err.name === 'NotFoundError' || err.name === 'NotAllowedError') {
-      stopFilePolling();
-    }
-  }
-};
-
-const reconcileFileChanges = async (externalModified) => {
-  // Last edit wins: compare timestamps
-  if (lastModifiedLocal && lastModifiedLocal > externalModified) {
-    // Our local changes are newer - skip reload
-    return;
-  }
-
-  // External changes are newer or we have no local edits - reload
-
-  try {
-    // Add syncing visual feedback
-    const editorElement = document.getElementById('editor');
-    const breadcrumb = document.getElementById('breadcrumb');
-    if (editorElement) {
-      editorElement.classList.add('syncing');
-    }
-    if (breadcrumb) {
-      breadcrumb.classList.add('syncing');
-    }
-
-    // Capture current state BEFORE any changes
-    let capturedScrollTop = 0;
-    let capturedCursorLine = 0;
-    let capturedCursorColumn = 0;
-
-    if (appState.editorManager) {
-      // Capture from markdown editor
-      if (appState.editorManager.currentMode === 'wysiwyg') {
-        capturedScrollTop = appState.editorManager.getScrollPosition();
-      } else {
-        const view = appState.editorManager.currentEditor?.view;
-        if (view) {
-          capturedScrollTop = view.scrollDOM.scrollTop;
-        }
-      }
-      const cursor = appState.editorManager.getCursor();
-      capturedCursorLine = cursor.line;
-      capturedCursorColumn = cursor.column;
-    } else if (appState.editorView) {
-      // Capture from regular CodeMirror
-      capturedScrollTop = appState.editorView.scrollDOM.scrollTop;
-      const pos = appState.editorView.state.selection.main.head;
-      const line = appState.editorView.state.doc.lineAt(pos);
-      capturedCursorLine = line.number - 1;
-      capturedCursorColumn = pos - line.from;
-    }
-
-    // Read fresh content from disk
-    const freshContent = await FileSystemAdapter.readFile(appState.currentFileHandle);
-
-    // Update editor with fresh content (preserving scroll position)
-    if (appState.editorManager) {
-      const wasWYSIWYG = appState.editorManager.currentMode === 'wysiwyg';
-
-      if (wasWYSIWYG) {
-        // For WYSIWYG: destroy and recreate to avoid duplicates
-        // Destroy old editor completely
-        appState.editorManager.currentEditor.destroy();
-        appState.editorManager.container.innerHTML = '';
-
-        // Create new editor with fresh content
-        await appState.editorManager.init('wysiwyg', freshContent);
-
-        // Update focus manager with new editor instance
-        appState.focusManager.setEditors(appState.editorManager, null);
-
-        // Restore scroll after editor is ready
-        await appState.editorManager.ready();
-
-        // Small delay to let WYSIWYG render, then restore position
-        setTimeout(() => {
-          if (appState.editorManager.currentEditor) {
-            appState.editorManager.currentEditor.setScrollPosition(capturedScrollTop);
-            // Restore cursor in WYSIWYG
-            try {
-              appState.editorManager.setCursor(capturedCursorLine, capturedCursorColumn);
-            } catch (_e) {
-              // Line might not exist in new content
-            }
-          }
-        }, 100);
-      } else {
-        // Source mode: update with scroll preservation
-        const view = appState.editorManager.currentEditor?.view;
-        if (view) {
-          view.dispatch({
-            changes: {
-              from: 0,
-              to: view.state.doc.length,
-              insert: freshContent,
-            },
-          });
-
-          // Restore scroll and cursor position immediately
-          requestAnimationFrame(() => {
-            view.scrollDOM.scrollTop = capturedScrollTop;
-
-            // Restore cursor position
-            try {
-              const lineObj = view.state.doc.line(capturedCursorLine + 1);
-              const pos = lineObj.from + Math.min(capturedCursorColumn, lineObj.length);
-              view.dispatch({
-                selection: { anchor: pos, head: pos },
-              });
-            } catch (_e) {
-              // Line might not exist in new content
-            }
-          });
-        }
-      }
-    } else if (appState.editorView) {
-      // For non-markdown files: update with scroll and cursor preservation
-      appState.editorView.dispatch({
-        changes: {
-          from: 0,
-          to: appState.editorView.state.doc.length,
-          insert: freshContent,
-        },
-      });
-
-      // Restore scroll and cursor position immediately
-      requestAnimationFrame(() => {
-        appState.editorView.scrollDOM.scrollTop = capturedScrollTop;
-
-        // Restore cursor position
-        try {
-          const lineObj = appState.editorView.state.doc.line(capturedCursorLine + 1);
-          const pos = lineObj.from + Math.min(capturedCursorColumn, lineObj.length);
-          appState.editorView.dispatch({
-            selection: { anchor: pos, head: pos },
-          });
-        } catch (_e) {
-          console.log('[File Sync] Could not restore cursor');
-        }
-      });
-    }
-
-    // Update tracking variables
-    appState.originalContent = freshContent;
-    appState.isDirty = false;
-    lastKnownModified = externalModified;
-    lastModifiedLocal = null; // Clear local timestamp since we just loaded
-
-    // Clear temp changes
-    const pathKey = getFilePathKey();
-    if (pathKey) {
-      clearTempChanges(pathKey);
-    }
-
-    // Update UI
-    updateBreadcrumb();
-
-    // Remove syncing and blur states, restore focus
-    if (editorElement) {
-      editorElement.classList.remove('syncing');
-      editorElement.classList.remove('blurred');
-    }
-    if (breadcrumb) {
-      breadcrumb.classList.remove('syncing');
-    }
-
-    // Restore focus to editor
-    appState.focusManager.focusEditor({ delay: 50, reason: 'file-synced' });
-
-    showFileReloadNotification();
-  } catch (err) {
-    console.error('[File Sync] Error reloading file:', err);
   }
 };
 
@@ -2127,30 +1752,6 @@ const showFileReloadNotification = () => {
       document.body.removeChild(toast);
     }, 300);
   }, 2500);
-};
-
-// File polling control
-const startFilePolling = () => {
-  if (filePollingInterval) {
-    clearInterval(filePollingInterval);
-  }
-
-  filePollingInterval = setInterval(checkFileForExternalChanges, 2500); // Check every 2.5 seconds
-};
-
-const stopFilePolling = () => {
-  if (filePollingInterval) {
-    clearInterval(filePollingInterval);
-    filePollingInterval = null;
-  }
-};
-
-const pauseFilePolling = () => {
-  isPollingPaused = true;
-};
-
-const resumeFilePolling = () => {
-  isPollingPaused = false;
 };
 
 // Debounced version (save every 2 seconds)
@@ -3208,27 +2809,8 @@ document.getElementById('folder-up-btn').addEventListener('click', () => {
   appState.focusManager.saveFocusState();
   goFolderUp();
 });
-// Helper function to animate autosave label
-const animateAutosaveLabel = (shouldHide) => {
-  const label = document.getElementById('autosave-label');
-
-  if (shouldHide) {
-    // Linger for 2 seconds, then fade out
-    setTimeout(() => {
-      label.classList.add('fade-out');
-      // After fade animation completes, hide completely
-      setTimeout(() => {
-        label.classList.add('hidden');
-      }, 500); // Match CSS transition duration
-    }, 2000);
-  } else {
-    // Show label immediately when unchecked
-    label.classList.remove('hidden', 'fade-out');
-  }
-};
-
 document.getElementById('autosave-checkbox').addEventListener('change', (e) => {
-  toggleAutosave(e.target.checked);
+  autosaveManager.toggle(e.target.checked);
   animateAutosaveLabel(e.target.checked);
 });
 document.getElementById('rich-toggle-btn').addEventListener('click', () => {
@@ -3732,7 +3314,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 
   // Start autosave (enabled by default)
   if (appState.autosaveEnabled) {
-    startAutosave();
+    autosaveManager.start();
     // Animate the autosave label to hide after initial load
     animateAutosaveLabel(true);
   }
@@ -3779,7 +3361,9 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
 
   // Cleanup trash on window close
   window.addEventListener('beforeunload', async () => {
-    await cleanupTrash();
+    if (appState.currentDirHandle) {
+      await trashManager.cleanup(appState.currentDirHandle);
+    }
   });
 
   // Add window focus listener for multi-instance detection

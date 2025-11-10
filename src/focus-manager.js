@@ -154,7 +154,6 @@ export class FocusManager {
     if (!state) return;
 
     try {
-      // eslint-disable-next-line no-undef
       requestAnimationFrame(() => {
         try {
           if (this.editorManager) {
@@ -213,7 +212,6 @@ export class FocusManager {
    * @param {string} reason - Debug reason for focus
    */
   focusAfterFrame(reason = 'after-frame') {
-    // eslint-disable-next-line no-undef
     requestAnimationFrame(() => {
       this._doFocus(reason);
     });
