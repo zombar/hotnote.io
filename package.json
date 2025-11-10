@@ -91,7 +91,11 @@
     "*.ts": [
       "prettier --write"
     ],
-    "*.{html,css,json}": [
+    "*.css": [
+      "stylelint --fix",
+      "prettier --write"
+    ],
+    "*.{html,json}": [
       "prettier --write"
     ],
     "*.{yml,yaml}": [
@@ -100,9 +104,6 @@
     ],
     "*.html": [
       "html-validate"
-    ],
-    "*.css": [
-      "stylelint --fix"
     ],
     "nginx.conf": [
       "bash -c 'npm run lint:nginx'"
