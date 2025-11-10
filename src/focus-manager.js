@@ -103,6 +103,12 @@ export class FocusManager {
       return true;
     }
 
+    // Check for CodeMirror search panel focus (find/replace)
+    // The search panel is part of the editor interaction
+    if (activeElement.closest('.cm-panel')) {
+      return true;
+    }
+
     // Check if active element is within an editor container
     const editorContainer = activeElement.closest('#editor');
     if (editorContainer) {
