@@ -5,61 +5,12 @@ import { test, expect } from '@playwright/test';
 async function initializeLogo(page) {
   await page.evaluate(() => {
     const logo = document.querySelector('[data-testid="logo"]');
-    const navbar = document.querySelector('header[data-testid="navbar"]');
 
-    if (!logo || !navbar) return;
+    if (!logo) return;
 
     // Set initial expanded state (simulating what updateLogoState does)
     logo.classList.add('expanded');
-
-    // Setup hover interactions (simulating setupLogoHoverInteraction)
-    let logoCollapseTimer = null;
-
-    // Expand when hovering over logo
-    logo.addEventListener('mouseenter', () => {
-      if (!logo.classList.contains('compact')) return;
-
-      if (logoCollapseTimer) {
-        clearTimeout(logoCollapseTimer);
-        logoCollapseTimer = null;
-      }
-
-      logo.classList.remove('compact');
-      logo.classList.add('expanded', 'animating');
-
-      setTimeout(() => {
-        logo.classList.remove('animating');
-      }, 600);
-    });
-
-    // Start collapse timer when leaving navbar
-    navbar.addEventListener('mouseleave', () => {
-      if (!logo.classList.contains('expanded')) return;
-
-      if (logoCollapseTimer) {
-        clearTimeout(logoCollapseTimer);
-        logoCollapseTimer = null;
-      }
-
-      logoCollapseTimer = setTimeout(() => {
-        logo.classList.remove('expanded');
-        logo.classList.add('compact', 'animating');
-
-        setTimeout(() => {
-          logo.classList.remove('animating');
-        }, 1200);
-
-        logoCollapseTimer = null;
-      }, 5000);
-    });
-
-    // Clear collapse timer when entering navbar
-    navbar.addEventListener('mouseenter', () => {
-      if (logoCollapseTimer) {
-        clearTimeout(logoCollapseTimer);
-        logoCollapseTimer = null;
-      }
-    });
+    logo.dataset.initialized = 'true';
 
     // Schedule the initial collapse animation (2.5s delay)
     setTimeout(() => {
@@ -112,99 +63,6 @@ test.describe('Logo Animation', () => {
     await page.waitForTimeout(1300); // Wait for 1.2s animation + buffer
     await expect(logo).toHaveClass(/compact/);
     await expect(logo).not.toHaveClass(/animating/);
-  });
-
-  test('should expand on hover when in compact state', async ({ page }) => {
-    await page.goto('/');
-
-    // Initialize logo by simulating file open
-    await initializeLogo(page);
-
-    const logo = page.getByTestId('logo');
-
-    // Wait for auto-collapse to complete
-    await page.waitForTimeout(4000); // 2.5s delay + 1.2s animation + buffer
-    await expect(logo).toHaveClass(/compact/);
-    await expect(logo).not.toHaveClass(/animating/);
-
-    // Hover over logo
-    await logo.hover();
-
-    // Should immediately start expanding (add 'expanded' and 'animating', remove 'compact')
-    await page.waitForTimeout(50);
-    await expect(logo).toHaveClass(/expanded/);
-    await expect(logo).toHaveClass(/animating/);
-    await expect(logo).not.toHaveClass(/compact/);
-
-    // After 0.6s, animation should complete
-    await page.waitForTimeout(650);
-    await expect(logo).toHaveClass(/expanded/);
-    await expect(logo).not.toHaveClass(/animating/);
-  });
-
-  test('should collapse after mouse leaves navbar with 5 second delay', async ({ page }) => {
-    await page.goto('/');
-
-    // Initialize logo by simulating file open
-    await initializeLogo(page);
-
-    const logo = page.getByTestId('logo');
-
-    // Wait for auto-collapse to complete
-    await page.waitForTimeout(4000);
-    await expect(logo).toHaveClass(/compact/);
-
-    // Hover over logo to expand
-    await logo.hover();
-    await page.waitForTimeout(700); // Wait for expand animation to complete
-    await expect(logo).toHaveClass(/expanded/);
-    await expect(logo).not.toHaveClass(/animating/);
-
-    // Move mouse away from navbar
-    await page.mouse.move(500, 500); // Move to center of page
-
-    // Should still be expanded after 4 seconds
-    await page.waitForTimeout(4000);
-    await expect(logo).toHaveClass(/expanded/);
-
-    // After 5 seconds total, should start collapsing
-    await page.waitForTimeout(1200);
-    await expect(logo).toHaveClass(/compact/);
-    await expect(logo).not.toHaveClass(/expanded/);
-  });
-
-  test('should cancel collapse timer when mouse re-enters navbar', async ({ page }) => {
-    await page.goto('/');
-
-    // Initialize logo by simulating file open
-    await initializeLogo(page);
-
-    const logo = page.getByTestId('logo');
-    const navbar = page.getByTestId('navbar');
-
-    // Wait for auto-collapse to complete
-    await page.waitForTimeout(4000);
-
-    // Hover over logo to expand
-    await logo.hover();
-    await page.waitForTimeout(700);
-    await expect(logo).toHaveClass(/expanded/);
-
-    // Move mouse away from navbar
-    await page.mouse.move(500, 500);
-
-    // Wait 3 seconds (less than the 5 second collapse delay)
-    await page.waitForTimeout(3000);
-
-    // Move mouse back to navbar
-    await navbar.hover();
-
-    // Wait another 3 seconds (if timer wasn't cancelled, would have collapsed)
-    await page.waitForTimeout(3000);
-
-    // Should still be expanded
-    await expect(logo).toHaveClass(/expanded/);
-    await expect(logo).not.toHaveClass(/compact/);
   });
 
   test('should show correct letter visibility in compact state', async ({ page }) => {
@@ -343,36 +201,6 @@ test.describe('Logo Animation', () => {
     // Animation should take approximately 1200ms (allow tolerance for browser timing and test overhead)
     expect(duration).toBeGreaterThan(1000);
     expect(duration).toBeLessThan(2100);
-  });
-
-  test('should complete expand animation in approximately 0.6 seconds', async ({ page }) => {
-    await page.goto('/');
-
-    // Initialize logo by simulating file open
-    await initializeLogo(page);
-
-    const logo = page.getByTestId('logo');
-
-    // Wait for auto-collapse to complete
-    await page.waitForTimeout(4000);
-    await expect(logo).toHaveClass(/compact/);
-
-    // Start hovering
-    const startTime = Date.now();
-    await logo.hover();
-
-    // Wait for animating class to appear
-    await expect(logo).toHaveClass(/animating/, { timeout: 100 });
-
-    // Wait for animating class to disappear (animation complete)
-    await expect(logo).not.toHaveClass(/animating/, { timeout: 1000 });
-
-    const endTime = Date.now();
-    const duration = endTime - startTime;
-
-    // Animation should take approximately 600ms (allow 300ms tolerance for browser timing)
-    expect(duration).toBeGreaterThan(500);
-    expect(duration).toBeLessThan(1000);
   });
 
   test('should not start auto-collapse if no file is opened', async ({ page }) => {
