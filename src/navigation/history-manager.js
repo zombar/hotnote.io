@@ -33,8 +33,27 @@ export const addToHistory = ({ captureEditorState } = {}) => {
 
   // Sync with browser history (unless we're navigating via popstate)
   if (!appState.isPopStateNavigation) {
-    const urlPath = pathToUrlParam();
-    const url = urlPath ? `?localdir=${urlPath}` : window.location.pathname;
+    // Build URL params the same way URLParamManager does (preserving forward slashes)
+    const workdirPath = appState.rootDirHandle?.name ? `/${appState.rootDirHandle.name}` : null;
+
+    let relativeFilePath = null;
+    if (appState.currentFileHandle && appState.currentFilename) {
+      // Build relative path from root (excluding root folder name)
+      const pathParts = appState.currentPath.slice(1).map((p) => p.name);
+      pathParts.push(appState.currentFilename);
+      relativeFilePath = pathParts.join('/') || appState.currentFilename;
+    }
+
+    // Build query string manually to preserve forward slashes (same as URLParamManager)
+    let queryString = '';
+    if (workdirPath) {
+      const encodePreservingSlashes = (str) => encodeURIComponent(str).replace(/%2F/g, '/');
+      queryString = `?workdir=${encodePreservingSlashes(workdirPath)}`;
+      if (relativeFilePath) {
+        queryString += `&file=${encodePreservingSlashes(relativeFilePath)}`;
+      }
+    }
+
     const title = appState.currentFilename || 'hotnote';
 
     window.history.pushState(
@@ -43,7 +62,7 @@ export const addToHistory = ({ captureEditorState } = {}) => {
         appHistory: true,
       },
       title,
-      url
+      window.location.pathname + queryString
     );
   }
 };
@@ -204,18 +223,8 @@ export const goBack = async ({
     });
   }
 
-  // Update URL to match current state
-  const urlPath = pathToUrlParam();
-  const url = urlPath ? `?localdir=${urlPath}` : window.location.pathname;
-  const title = appState.currentFilename || 'hotnote';
-  window.history.replaceState(
-    {
-      historyIndex: appState.historyIndex,
-      appHistory: true,
-    },
-    title,
-    url
-  );
+  // No need to update URL - browser history already has the correct URL
+  // from when addToHistory() was originally called with pushState()
 };
 
 /**
@@ -305,18 +314,8 @@ export const goForward = async (callbacks = {}) => {
     });
   }
 
-  // Update URL to match current state
-  const urlPath = pathToUrlParam();
-  const url = urlPath ? `?localdir=${urlPath}` : window.location.pathname;
-  const title = appState.currentFilename || 'hotnote';
-  window.history.replaceState(
-    {
-      historyIndex: appState.historyIndex,
-      appHistory: true,
-    },
-    title,
-    url
-  );
+  // No need to update URL - browser history already has the correct URL
+  // from when addToHistory() was originally called with pushState()
 };
 
 /**

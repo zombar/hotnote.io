@@ -19,6 +19,7 @@ import {
   goFolderUp,
   updateNavigationButtons,
 } from './src/navigation/history-manager.js';
+import { URLParamManager } from './src/navigation/url-param-manager.js';
 import {
   showFilePicker,
   hideFilePicker,
@@ -101,6 +102,10 @@ const saveTempChanges = () => {
 
 // Wrapper functions for core temp storage (used by modules)
 const _loadTempChanges = (key) => {
+  return loadTempChangesCore(key);
+};
+
+const loadTempChanges = (key) => {
   return loadTempChangesCore(key);
 };
 
@@ -910,15 +915,26 @@ const openFolder = async () => {
     // Track if file was successfully restored
     let fileRestored = false;
 
-    // Try to restore last open file
-    if (sessionData.session && sessionData.session.lastOpenFile) {
-      const lastFile = sessionData.session.lastOpenFile;
+    // Check URL params first - they take precedence over session data
+    const urlParams = URLParamManager.validate();
+    const urlFile = urlParams.file;
+
+    // Try to restore file from URL param or session
+    const fileToRestore = urlFile || sessionData.session?.lastOpenFile?.path;
+
+    if (fileToRestore) {
+      const lastFile = urlFile
+        ? { path: urlFile } // Don't set editorMode - let it default to 'wysiwyg' for markdown
+        : sessionData.session.lastOpenFile;
 
       // Set flag to indicate we're restoring from session
-      appState.isRestoringSession = true;
+      // Only set this flag when restoring from session data, not URL params
+      // This ensures URL-opened files always default to wysiwyg mode (showing TOC)
+      appState.isRestoringSession = !urlFile;
 
       // Save editor mode preference to localStorage so initEditor can use it
-      if (lastFile.editorMode !== undefined) {
+      // Only save if we have an explicit editorMode (from session data, not URL params)
+      if (lastFile.editorMode !== undefined && lastFile.editorMode !== null) {
         const filename = lastFile.path.split('/').pop();
         localStorage.setItem(`mode_${filename}`, lastFile.editorMode);
       }
@@ -1019,6 +1035,12 @@ const openFolder = async () => {
     }
 
     addToHistory();
+
+    // Update URL params with workdir after folder is opened
+    // Preserve file param if it exists in the URL (don't overwrite it yet)
+    const workdirPath = dirHandle.name ? `/${dirHandle.name}` : '/workspace';
+    const currentUrlParams = URLParamManager.validate();
+    URLParamManager.update(workdirPath, currentUrlParams.file);
 
     // Only show file picker if file was not restored
     if (!fileRestored) {
@@ -1488,7 +1510,7 @@ document.getElementById('new-btn').addEventListener('click', () => {
   appState.focusManager.saveFocusState();
   newFile();
 });
-document.getElementById('back-btn').addEventListener('click', () => {
+document.getElementById('back-btn').addEventListener('click', async () => {
   // Save current editor state to history before navigating
   if (appState.currentFileHandle && appState.navigationHistory[appState.historyIndex]) {
     const editorState = appState.focusManager._captureEditorState();
@@ -1496,9 +1518,12 @@ document.getElementById('back-btn').addEventListener('click', () => {
       appState.navigationHistory[appState.historyIndex].editorState = editorState;
     }
   }
-  goBack();
+
+  // Use browser's native back - this will trigger popstate event
+  // which handles all the navigation logic consistently
+  window.history.back();
 });
-document.getElementById('forward-btn').addEventListener('click', () => {
+document.getElementById('forward-btn').addEventListener('click', async () => {
   // Save current editor state to history before navigating
   if (appState.currentFileHandle && appState.navigationHistory[appState.historyIndex]) {
     const editorState = appState.focusManager._captureEditorState();
@@ -1506,11 +1531,20 @@ document.getElementById('forward-btn').addEventListener('click', () => {
       appState.navigationHistory[appState.historyIndex].editorState = editorState;
     }
   }
-  goForward();
+
+  // Use browser's native forward - this will trigger popstate event
+  // which handles all the navigation logic consistently
+  window.history.forward();
 });
-document.getElementById('folder-up-btn').addEventListener('click', () => {
+document.getElementById('folder-up-btn').addEventListener('click', async () => {
   appState.focusManager.saveFocusState();
-  goFolderUp();
+  await goFolderUp({
+    saveTempChanges,
+    initEditor,
+    updateBreadcrumb,
+    updateLogoState,
+    showFilePicker,
+  });
 });
 document.getElementById('autosave-checkbox').addEventListener('change', (e) => {
   autosaveManager.toggle(e.target.checked);
@@ -1554,17 +1588,31 @@ window.addEventListener('popstate', async (event) => {
     return;
   }
 
-  const targetIndex = event.state.appState.historyIndex;
+  const targetIndex = event.state.historyIndex;
 
   // Set flag to prevent addToHistory from creating duplicate entries
   appState.isPopStateNavigation = true;
+
+  // Create navigation callbacks
+  const navCallbacks = {
+    saveTempChanges,
+    loadTempChanges,
+    initEditor,
+    updateBreadcrumb,
+    updateLogoState,
+    hideFilePicker,
+    showFilePicker,
+    getFilePathKey,
+    restoreEditorState: (state) => appState.focusManager._restoreEditorState(state),
+    isMarkdownFile,
+  };
 
   try {
     // Navigate to the target index
     if (targetIndex < appState.historyIndex) {
       // Going back
       while (appState.historyIndex > targetIndex && appState.historyIndex > 0) {
-        await goBack();
+        await goBack(navCallbacks);
       }
     } else if (targetIndex > appState.historyIndex) {
       // Going forward
@@ -1572,12 +1620,19 @@ window.addEventListener('popstate', async (event) => {
         appState.historyIndex < targetIndex &&
         appState.historyIndex < appState.navigationHistory.length - 1
       ) {
-        await goForward();
+        await goForward(navCallbacks);
       }
     }
   } finally {
     // Always reset the flag
     appState.isPopStateNavigation = false;
+
+    // Restore focus to editor after navigation
+    if (appState.currentFileHandle) {
+      requestAnimationFrame(() => {
+        appState.focusManager.restoreFocus();
+      });
+    }
   }
 });
 
@@ -1790,6 +1845,65 @@ const showWelcomePrompt = () => {
     appState.focusManager.saveFocusState();
     hideFilePicker();
     openFolder();
+  });
+};
+
+// Show workdir prompt when URL has workdir parameter
+const showWorkdirPrompt = (workdirPath) => {
+  const picker = document.getElementById('file-picker');
+  picker.classList.remove('hidden');
+
+  // Extract just the folder name from the full path for display
+  const folderName =
+    workdirPath
+      .split('/')
+      .filter((p) => p)
+      .pop() || 'workspace';
+
+  picker.innerHTML = `
+        <div class="welcome-content">
+            <p class="welcome-text">Open workspace</p>
+            <p class="welcome-text" style="font-size: 0.9em; opacity: 0.8; margin-top: 0.5em;">${workdirPath}</p>
+            <div class="welcome-actions">
+                <button id="open-workdir-btn" class="welcome-btn">
+                    <span class="material-symbols-outlined">folder_open</span>
+                    Select ${folderName}
+                </button>
+                <button id="cancel-workdir-btn" class="welcome-btn">
+                    <span class="material-symbols-outlined">close</span>
+                    Cancel
+                </button>
+            </div>
+        </div>
+    `;
+
+  document.getElementById('open-workdir-btn').addEventListener('click', async () => {
+    appState.focusManager.saveFocusState();
+    hideFilePicker();
+
+    // Trigger folder picker - user must select the folder
+    await openFolder();
+
+    // After folder is selected, update URL with actual folder path
+    // (It may differ from the URL param if user selected a different folder)
+  });
+
+  document.getElementById('cancel-workdir-btn').addEventListener('click', () => {
+    appState.focusManager.saveFocusState();
+
+    // Clear URL params and show normal welcome
+    URLParamManager.clear();
+    hideFilePicker();
+
+    // Show normal prompt based on whether we have lastFolderName
+    const lastFolderName = localStorage.getItem('lastFolderName');
+    setTimeout(() => {
+      if (lastFolderName) {
+        showResumePrompt(lastFolderName);
+      } else {
+        showWelcomePrompt();
+      }
+    }, 100);
   });
 };
 
@@ -2057,13 +2171,31 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
     );
   }
 
-  // Check for saved folder and show appropriate prompt
+  // Expose URLParamManager for e2e tests
+  window.URLParamManager = URLParamManager;
+
+  // Check URL params first, then fallback to saved folder or welcome prompt
   setTimeout(() => {
-    const lastFolderName = localStorage.getItem('lastFolderName');
-    if (lastFolderName) {
-      showResumePrompt(lastFolderName);
+    // Validate URL parameters
+    const urlParams = URLParamManager.validate();
+
+    // Check for invalid state (file without workdir)
+    if (URLParamManager.isInvalidState()) {
+      // Clear invalid params
+      URLParamManager.clear();
+    }
+
+    // If valid workdir param exists, show workdir prompt
+    if (urlParams.workdir) {
+      showWorkdirPrompt(urlParams.workdir);
     } else {
-      showWelcomePrompt();
+      // No URL params - check for saved folder or show welcome
+      const lastFolderName = localStorage.getItem('lastFolderName');
+      if (lastFolderName) {
+        showResumePrompt(lastFolderName);
+      } else {
+        showWelcomePrompt();
+      }
     }
   }, 500);
 

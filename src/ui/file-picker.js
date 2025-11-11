@@ -5,6 +5,7 @@ import { addToHistory } from '../navigation/history-manager.js';
 import { updateBreadcrumb } from './breadcrumb.js';
 import { hasTempChanges, saveTempChanges, clearTempChanges } from '../../core.js';
 import { debounce } from '../utils/helpers.js';
+import { URLParamManager } from '../navigation/url-param-manager.js';
 
 /**
  * Show file picker with current directory contents
@@ -95,6 +96,12 @@ export const showFilePicker = async (dirHandle) => {
   // File will be restored if picker is closed without selection
   appState.currentFileHandle = null;
   appState.currentFilename = '';
+
+  // Update URL params: clear file param, keep workdir
+  const workdirPath = appState.rootDirHandle?.name ? `/${appState.rootDirHandle.name}` : null;
+  if (workdirPath) {
+    URLParamManager.update(workdirPath, null);
+  }
 
   // Note: Breadcrumb will be rebuilt by quickFileCreate() at the end with search input
   // This ensures a single, clean update with proper focus
@@ -449,6 +456,8 @@ export const openFileFromPicker = async (fileHandle) => {
     // Update UI
     updateBreadcrumb();
     window.updateLogoState();
+
+    // addToHistory() will handle updating URL params
     addToHistory();
 
     // Show notification that file was loaded from disk

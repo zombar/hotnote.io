@@ -48,7 +48,7 @@ describe('History Manager', () => {
       captureEditorState: vi.fn(() => ({ cursor: 0, scroll: 0 })),
     };
 
-    // Mock window.history
+    // Mock window.history and location
     global.window = {
       history: {
         pushState: vi.fn(),
@@ -56,6 +56,9 @@ describe('History Manager', () => {
       },
       location: {
         pathname: '/',
+        search: '',
+        href: 'http://localhost/',
+        origin: 'http://localhost',
       },
     };
   });
@@ -361,7 +364,10 @@ describe('History Manager', () => {
       expect(mockCallbacks.updateLogoState).toHaveBeenCalled();
     });
 
-    it('should update browser history', async () => {
+    it('should not update browser history (handled by browser)', async () => {
+      // After refactor: goBack() no longer updates browser history
+      // Browser history is updated by window.history.back() in app.js,
+      // which triggers popstate event that calls goBack()
       appState.navigationHistory = [
         { path: [], dirHandle: null, fileHandle: null, filename: '' },
         { path: [], dirHandle: null, fileHandle: null, filename: '' },
@@ -370,7 +376,8 @@ describe('History Manager', () => {
 
       await goBack(mockCallbacks);
 
-      expect(window.history.replaceState).toHaveBeenCalled();
+      // goBack() should NOT update browser history - that's handled by browser
+      expect(window.history.replaceState).not.toHaveBeenCalled();
     });
   });
 

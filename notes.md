@@ -1,5 +1,9 @@
 ## TODO
 
+* center the breadcrumbs on the navbar
+
+* When a tab is closed, the session metadata should be updated before close
+
 * Need some sort of diff resolution, if the file changes on the underlying storage tell the user about the changes before reloading the file - use the toaster to display a persistent message 'reload file with changes? \[Y] \[X]' - it should work a bit like a merge conflict
 
 * When clicking a breadcrumb with the filepicker closed the breadcrumbs bar should be updated with the new location -> the filename text should be cleared and caret shown -> the file picker should be shown. When clicking a breadcrumb with the file picker open should: update the breadcrumb to the new location -> the filename should still be cleared and caret showing -> the file picker should be updated to the new location.
