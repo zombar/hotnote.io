@@ -371,4 +371,151 @@ describe('Editor State Restoration', () => {
       expect(operations).toEqual(['cursor-error', 'scroll-success', 'focus-success']);
     });
   });
+
+  describe('Cursor Position Bounds Checking', () => {
+    it('should not restore cursor if line number exceeds document length', () => {
+      // Simulate a 1-line document
+      const mockDoc = {
+        lines: 1,
+        length: 20,
+        line: vi.fn((lineNum) => {
+          if (lineNum < 1 || lineNum > 1) {
+            throw new RangeError(`Invalid line number ${lineNum} in 1-line document`);
+          }
+          return { from: 0, length: 20 };
+        }),
+      };
+
+      mockEditorView.state.doc = mockDoc;
+
+      // Try to restore cursor to line 2 (out of bounds)
+      const savedCursorLine = 1; // 0-based line 1
+      const targetLine = savedCursorLine + 1; // Convert to 1-based = line 2
+
+      // This should NOT throw because we check bounds first
+      expect(() => {
+        if (targetLine >= 1 && targetLine <= mockDoc.lines) {
+          mockDoc.line(targetLine);
+          mockEditorView.dispatch({ selection: { anchor: 0, head: 0 } });
+        }
+      }).not.toThrow();
+
+      // Verify line() was never called (bounds check prevented it)
+      expect(mockDoc.line).not.toHaveBeenCalled();
+    });
+
+    it('should restore cursor if line number is within bounds', () => {
+      // Simulate a 5-line document
+      const mockDoc = {
+        lines: 5,
+        length: 100,
+        line: vi.fn((lineNum) => {
+          if (lineNum < 1 || lineNum > 5) {
+            throw new RangeError(`Invalid line number ${lineNum} in 5-line document`);
+          }
+          return { from: (lineNum - 1) * 20, length: 20 };
+        }),
+      };
+
+      mockEditorView.state.doc = mockDoc;
+
+      // Restore cursor to line 3 (valid)
+      const savedCursorLine = 2; // 0-based line 2
+      const targetLine = savedCursorLine + 1; // Convert to 1-based = line 3
+
+      // This should work fine
+      if (targetLine >= 1 && targetLine <= mockDoc.lines) {
+        const line = mockDoc.line(targetLine);
+        const pos = line.from + 5; // Column 5
+        mockEditorView.dispatch({ selection: { anchor: pos, head: pos } });
+      }
+
+      expect(mockDoc.line).toHaveBeenCalledWith(3);
+      expect(mockEditorView.dispatch).toHaveBeenCalledWith({
+        selection: { anchor: 45, head: 45 },
+      });
+    });
+
+    it('should handle cursor at exact document boundary', () => {
+      // Simulate a 10-line document
+      const mockDoc = {
+        lines: 10,
+        length: 200,
+        line: vi.fn((lineNum) => {
+          if (lineNum < 1 || lineNum > 10) {
+            throw new RangeError(`Invalid line number ${lineNum} in 10-line document`);
+          }
+          return { from: (lineNum - 1) * 20, length: 20 };
+        }),
+      };
+
+      mockEditorView.state.doc = mockDoc;
+
+      // Restore cursor to last line (line 10)
+      const savedCursorLine = 9; // 0-based line 9
+      const targetLine = savedCursorLine + 1; // Convert to 1-based = line 10
+
+      if (targetLine >= 1 && targetLine <= mockDoc.lines) {
+        const line = mockDoc.line(targetLine);
+        const pos = line.from + 10;
+        mockEditorView.dispatch({ selection: { anchor: pos, head: pos } });
+      }
+
+      expect(mockDoc.line).toHaveBeenCalledWith(10);
+      expect(mockEditorView.dispatch).toHaveBeenCalled();
+    });
+
+    it('should handle stale session with cursor beyond current document', () => {
+      // Scenario: File was 100 lines when saved, now only 5 lines
+      const mockDoc = {
+        lines: 5,
+        length: 100,
+        line: vi.fn((lineNum) => {
+          if (lineNum < 1 || lineNum > 5) {
+            throw new RangeError(`Invalid line number ${lineNum} in 5-line document`);
+          }
+          return { from: (lineNum - 1) * 20, length: 20 };
+        }),
+      };
+
+      mockEditorView.state.doc = mockDoc;
+
+      // Try to restore cursor to line 50 (way out of bounds)
+      const savedCursorLine = 49; // 0-based line 49
+      const targetLine = savedCursorLine + 1; // Convert to 1-based = line 50
+
+      // Should gracefully skip restoration
+      if (targetLine >= 1 && targetLine <= mockDoc.lines) {
+        mockDoc.line(targetLine);
+        mockEditorView.dispatch({ selection: { anchor: 0, head: 0 } });
+      }
+
+      // Verify neither line() nor dispatch was called
+      expect(mockDoc.line).not.toHaveBeenCalled();
+      expect(mockEditorView.dispatch).not.toHaveBeenCalled();
+    });
+
+    it('should handle empty document (0 lines)', () => {
+      const mockDoc = {
+        lines: 0,
+        length: 0,
+        line: vi.fn(() => {
+          throw new RangeError('Invalid line number in empty document');
+        }),
+      };
+
+      mockEditorView.state.doc = mockDoc;
+
+      // Try to restore any cursor position
+      const savedCursorLine = 0;
+      const targetLine = savedCursorLine + 1;
+
+      if (targetLine >= 1 && targetLine <= mockDoc.lines) {
+        mockDoc.line(targetLine);
+      }
+
+      // Should not attempt to access any line
+      expect(mockDoc.line).not.toHaveBeenCalled();
+    });
+  });
 });

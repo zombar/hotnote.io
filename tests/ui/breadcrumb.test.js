@@ -252,4 +252,143 @@ describe('Breadcrumb', () => {
       expect(appState.currentPath).toEqual(originalPath);
     });
   });
+
+  describe('Callback Requirements', () => {
+    it('should not throw when callbacks are missing', () => {
+      appState.currentPath = [{ name: 'src' }];
+      appState.currentFilename = 'test.js';
+      appState.currentFileHandle = createMockFileHandle('test.js', '');
+      appState.currentDirHandle = createMockDirectoryHandle('src', {});
+
+      // Should not throw even without callbacks
+      expect(() => {
+        updateBreadcrumb();
+      }).not.toThrow();
+    });
+
+    it('should call showFilePicker when clicking filename with callback provided', () => {
+      appState.currentPath = [{ name: 'src' }];
+      appState.currentFilename = 'test.js';
+      appState.currentFileHandle = createMockFileHandle('test.js', '');
+      appState.currentDirHandle = createMockDirectoryHandle('src', {});
+
+      updateBreadcrumb(mockCallbacks);
+
+      const fileItem = breadcrumbElement.querySelector(
+        '.breadcrumb-item:last-child:not(.breadcrumb-placeholder)'
+      );
+      expect(fileItem).toBeTruthy();
+
+      // Click the filename
+      fileItem.click();
+
+      expect(mockCallbacks.showFilePicker).toHaveBeenCalledWith(appState.currentDirHandle);
+    });
+
+    it('should not crash when clicking filename without showFilePicker callback', () => {
+      appState.currentPath = [{ name: 'src' }];
+      appState.currentFilename = 'test.js';
+      appState.currentFileHandle = createMockFileHandle('test.js', '');
+      appState.currentDirHandle = createMockDirectoryHandle('src', {});
+
+      // Update with no callbacks
+      updateBreadcrumb();
+
+      const fileItem = breadcrumbElement.querySelector(
+        '.breadcrumb-item:last-child:not(.breadcrumb-placeholder)'
+      );
+
+      // Should not throw even without callback
+      expect(() => {
+        fileItem.click();
+      }).not.toThrow();
+    });
+
+    it('should call showFilePicker when clicking placeholder with callback provided', () => {
+      appState.currentPath = [{ name: 'src' }];
+      appState.currentFileHandle = null; // No file open
+      appState.currentDirHandle = createMockDirectoryHandle('src', {});
+
+      updateBreadcrumb(mockCallbacks);
+
+      const placeholder = breadcrumbElement.querySelector('.breadcrumb-placeholder');
+      expect(placeholder).toBeTruthy();
+      expect(placeholder.textContent).toBe('filename (/ for search)');
+
+      // Click the placeholder
+      placeholder.click();
+
+      expect(mockCallbacks.showFilePicker).toHaveBeenCalledWith(appState.currentDirHandle);
+    });
+
+    it('should not crash when clicking placeholder without showFilePicker callback', () => {
+      appState.currentPath = [{ name: 'src' }];
+      appState.currentFileHandle = null;
+      appState.currentDirHandle = createMockDirectoryHandle('src', {});
+
+      // Update with no callbacks
+      updateBreadcrumb();
+
+      const placeholder = breadcrumbElement.querySelector('.breadcrumb-placeholder');
+
+      // Should not throw
+      expect(() => {
+        placeholder.click();
+      }).not.toThrow();
+    });
+
+    it('should call saveFocusState before showFilePicker', () => {
+      appState.currentPath = [{ name: 'src' }];
+      appState.currentFilename = 'test.js';
+      appState.currentFileHandle = createMockFileHandle('test.js', '');
+      appState.currentDirHandle = createMockDirectoryHandle('src', {});
+
+      const callOrder = [];
+      mockCallbacks.saveFocusState = vi.fn(() => callOrder.push('saveFocus'));
+      mockCallbacks.showFilePicker = vi.fn(() => callOrder.push('showPicker'));
+
+      updateBreadcrumb(mockCallbacks);
+
+      const fileItem = breadcrumbElement.querySelector(
+        '.breadcrumb-item:last-child:not(.breadcrumb-placeholder)'
+      );
+      fileItem.click();
+
+      expect(callOrder).toEqual(['saveFocus', 'showPicker']);
+    });
+
+    it('should call openFolder when clicking untitled without folder', () => {
+      appState.currentPath = [];
+      appState.currentFilename = '';
+
+      updateBreadcrumb(mockCallbacks);
+
+      const item = breadcrumbElement.querySelector('.breadcrumb-item');
+      expect(item.textContent).toBe('untitled');
+
+      item.click();
+
+      expect(mockCallbacks.openFolder).toHaveBeenCalled();
+    });
+
+    it('should handle missing currentDirHandle gracefully', () => {
+      appState.currentPath = [{ name: 'src' }];
+      appState.currentFilename = 'test.js';
+      appState.currentFileHandle = createMockFileHandle('test.js', '');
+      appState.currentDirHandle = null; // Missing!
+
+      updateBreadcrumb(mockCallbacks);
+
+      const fileItem = breadcrumbElement.querySelector(
+        '.breadcrumb-item:last-child:not(.breadcrumb-placeholder)'
+      );
+
+      // Should not crash or call showFilePicker
+      expect(() => {
+        fileItem.click();
+      }).not.toThrow();
+
+      expect(mockCallbacks.showFilePicker).not.toHaveBeenCalled();
+    });
+  });
 });
