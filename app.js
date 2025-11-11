@@ -10,6 +10,7 @@ import {
 import { createAutosaveManager, animateAutosaveLabel } from './src/editor/autosave.js';
 import { createFileSyncManager } from './src/storage/file-sync.js';
 import { appState } from './src/state/app-state.js';
+import { debounce } from './src/utils/helpers.js';
 import { updateBreadcrumb } from './src/ui/breadcrumb.js';
 import {
   addToHistory,
@@ -23,6 +24,7 @@ import {
   hideFilePicker,
   initFilePickerResize,
   quickFileCreate,
+  openFileFromPicker,
   newFile,
   setupFilePickerClickAway,
 } from './src/ui/file-picker.js';

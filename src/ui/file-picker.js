@@ -296,7 +296,7 @@ const navigateToDirectory = async (dirHandle) => {
  * Open a file from the file picker
  * @param {FileSystemFileHandle} fileHandle - File handle
  */
-const openFileFromPicker = async (fileHandle) => {
+export const openFileFromPicker = async (fileHandle) => {
   try {
     // Save temp changes for currently open file if dirty
     if (appState.isDirty && appState.currentFileHandle) {
