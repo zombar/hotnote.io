@@ -165,6 +165,10 @@ export const navigateToPathIndex = async (
     saveTempChanges();
   }
 
+  // Save current path for restoration if user cancels (closes picker without selection)
+  // Deep copy the array to prevent mutations
+  appState.previousPath = [...appState.currentPath];
+
   // Truncate path to the clicked index
   appState.currentPath = appState.currentPath.slice(0, index + 1);
   if (appState.currentPath[appState.currentPath.length - 1]) {

@@ -251,6 +251,32 @@ describe('Breadcrumb', () => {
 
       expect(appState.currentPath).toEqual(originalPath);
     });
+
+    it('should save current path when navigating to breadcrumb', async () => {
+      appState.currentPath = [{ name: 'root' }, { name: 'src' }, { name: 'components' }];
+      appState.currentDirHandle = createMockDirectoryHandle('components', {});
+
+      await navigateToPathIndex(0, mockCallbacks);
+
+      // Previous path should be saved for restoration if user cancels
+      expect(appState.previousPath).toBeDefined();
+      expect(appState.previousPath).toHaveLength(3);
+      expect(appState.previousPath[0].name).toBe('root');
+      expect(appState.previousPath[1].name).toBe('src');
+      expect(appState.previousPath[2].name).toBe('components');
+    });
+
+    it('should truncate path when navigating to breadcrumb index', async () => {
+      appState.currentPath = [{ name: 'root' }, { name: 'src' }, { name: 'components' }];
+      appState.currentDirHandle = createMockDirectoryHandle('components', {});
+
+      await navigateToPathIndex(1, mockCallbacks);
+
+      // Path should be truncated to clicked index
+      expect(appState.currentPath).toHaveLength(2);
+      expect(appState.currentPath[0].name).toBe('root');
+      expect(appState.currentPath[1].name).toBe('src');
+    });
   });
 
   describe('Callback Requirements', () => {

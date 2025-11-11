@@ -156,16 +156,27 @@ export const hideFilePicker = () => {
     window.fileSyncManager.resume();
   }
 
-  // Restore previous file if picker was closed without selecting a new file
-  // This happens when user clicks breadcrumb to browse, then closes picker
-  if (!appState.currentFileHandle && appState.previousFileHandle) {
-    appState.currentFileHandle = appState.previousFileHandle;
-    appState.currentFilename = appState.previousFilename;
+  // Restore previous file and path if picker was closed without selecting a new file
+  // This happens when user clicks breadcrumb to browse, then closes picker without selection
+  const noFileSelected = !appState.currentFileHandle;
+
+  if (noFileSelected) {
+    // Restore previous file if there was one
+    if (appState.previousFileHandle) {
+      appState.currentFileHandle = appState.previousFileHandle;
+      appState.currentFilename = appState.previousFilename;
+    }
+
+    // Restore previous path if there was one (from breadcrumb navigation)
+    if (appState.previousPath) {
+      appState.currentPath = appState.previousPath;
+    }
   }
 
-  // Clear previous file state now that we've handled restoration
+  // Clear previous state now that we've handled restoration
   appState.previousFileHandle = null;
   appState.previousFilename = '';
+  appState.previousPath = null;
 
   // Restore focus to editor if a file is currently open
   if (appState.currentFileHandle) {
@@ -329,9 +340,10 @@ export const openFileFromPicker = async (fileHandle) => {
     appState.currentFileHandle = fileHandle;
     appState.currentFilename = fileHandle.name;
 
-    // Clear previous file state since we're opening a new file
+    // Clear previous file and path state since we're opening a new file
     appState.previousFileHandle = null;
     appState.previousFilename = '';
+    appState.previousPath = null;
 
     // Always load the original file content from disk
     const fileContent = await FileSystemAdapter.readFile(fileHandle);

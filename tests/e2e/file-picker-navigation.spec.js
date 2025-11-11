@@ -209,18 +209,19 @@ test.describe('File Picker Navigation with Open Files', () => {
     expect(restoredState.hasPrevious).toBeFalsy(); // Previous state should be cleared
   });
 
-  test('should restore file after multiple breadcrumb clicks and closes', async ({ page }) => {
+  test('should restore file and path after breadcrumb navigation cancel', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('[data-testid="editor"]');
 
-    // Set up initial file state
+    // Set up initial file and path state
     await page.evaluate(() => {
       window.currentFileHandle = { name: 'stable.md', kind: 'file' };
       window.currentFilename = 'stable.md';
-      window.currentDirHandle = { name: 'dir1', kind: 'directory' };
+      window.currentDirHandle = { name: 'components', kind: 'directory' };
       window.currentPath = [
         { name: 'root', handle: { name: 'root', kind: 'directory' } },
-        { name: 'dir1', handle: window.currentDirHandle },
+        { name: 'src', handle: { name: 'src', kind: 'directory' } },
+        { name: 'components', handle: window.currentDirHandle },
       ];
 
       if (typeof window.updateBreadcrumb === 'function') {
@@ -231,34 +232,43 @@ test.describe('File Picker Navigation with Open Files', () => {
     const breadcrumb = page.getByTestId('breadcrumb');
     const editor = page.getByTestId('editor');
 
-    // Click breadcrumb, close picker, repeat
-    await breadcrumb.click();
-    await page.waitForTimeout(100);
-    await editor.click(); // Close picker
-    await page.waitForTimeout(100);
-
-    // After first click-close cycle, file should be restored
-    let fileState = await page.evaluate(() => ({
-      hasHandle: window.currentFileHandle !== null,
-      filename: window.currentFilename,
-    }));
-    expect(fileState.hasHandle).toBeTruthy();
-    expect(fileState.filename).toBe('stable.md');
-
-    // Second click-close cycle
-    await breadcrumb.click();
-    await page.waitForTimeout(100);
-    await editor.click(); // Close picker
+    // Click first breadcrumb item to navigate to shallower path
+    const firstItem = breadcrumb.locator('.breadcrumb-item').first();
+    await firstItem.click();
     await page.waitForTimeout(100);
 
-    // File should still be restored after second cycle
-    fileState = await page.evaluate(() => ({
-      hasHandle: window.currentFileHandle !== null,
-      filename: window.currentFilename,
+    // Path should be truncated and previous state saved
+    let state = await page.evaluate(() => ({
+      currentPathLength: window.currentPath?.length || 0,
+      previousPathLength: window.previousPath?.length || 0,
+      hasFile: window.currentFileHandle !== null,
+      hasPreviousFile: window.previousFileHandle !== null,
     }));
 
-    expect(fileState.hasHandle).toBeTruthy();
-    expect(fileState.filename).toBe('stable.md');
+    // After breadcrumb click: path truncated, file cleared, previous states saved
+    expect(state.currentPathLength).toBeLessThan(3); // Truncated
+    expect(state.previousPathLength).toBe(3); // Original saved
+    expect(state.hasFile).toBeFalsy(); // File cleared
+    expect(state.hasPreviousFile).toBeTruthy(); // Previous file saved
+
+    // Close picker without selection
+    await editor.click();
+    await page.waitForTimeout(100);
+
+    // Both file and path should be restored
+    state = await page.evaluate(() => ({
+      pathLength: window.currentPath?.length || 0,
+      filename: window.currentFilename,
+      hasFile: window.currentFileHandle !== null,
+      hasPreviousPath: window.previousPath !== null,
+      pathNames: window.currentPath?.map((p) => p.name) || [],
+    }));
+
+    expect(state.hasFile).toBeTruthy();
+    expect(state.filename).toBe('stable.md');
+    expect(state.pathLength).toBe(3); // Path restored
+    expect(state.pathNames).toEqual(['root', 'src', 'components']);
+    expect(state.hasPreviousPath).toBeFalsy(); // Previous state cleared
   });
 
   test('should not call initEditor with untitled when showing picker', async ({ page }) => {

@@ -321,6 +321,56 @@ describe('File Picker', () => {
       expect(appState.currentFileHandle).toBeNull();
       expect(appState.currentFilename).toBe('');
     });
+
+    it('should restore previous path if picker closed without selection', () => {
+      // Setup: user had a path, navigated breadcrumb to shallower path
+      const savedFile = createMockFileHandle('important.js', 'content');
+      const originalPath = [{ name: 'root' }, { name: 'src' }, { name: 'components' }];
+      appState.previousFileHandle = savedFile;
+      appState.previousFilename = 'important.js';
+      appState.previousPath = originalPath;
+      appState.currentPath = [{ name: 'root' }]; // Truncated by breadcrumb navigation
+      appState.currentFileHandle = null;
+      appState.currentFilename = '';
+
+      hideFilePicker();
+
+      // Should restore the previous path
+      expect(appState.currentPath).toEqual(originalPath);
+      expect(appState.currentPath).toHaveLength(3);
+      // Should clear the previous state
+      expect(appState.previousPath).toBeNull();
+    });
+
+    it('should not restore path if new file was selected', () => {
+      // Setup: user navigated breadcrumb, then selected a file
+      appState.previousPath = [{ name: 'root' }, { name: 'src' }, { name: 'components' }];
+      appState.currentPath = [{ name: 'root' }];
+      appState.currentFileHandle = createMockFileHandle('new.js', 'new content');
+      appState.currentFilename = 'new.js';
+
+      hideFilePicker();
+
+      // Should keep the new path (where the file was selected)
+      expect(appState.currentPath).toHaveLength(1);
+      expect(appState.currentPath[0].name).toBe('root');
+      // Should clear the previous state
+      expect(appState.previousPath).toBeNull();
+    });
+
+    it('should not restore path if there was no previous path', () => {
+      // Setup: no path was saved
+      appState.previousPath = null;
+      appState.currentPath = [{ name: 'root' }];
+      appState.currentFileHandle = null;
+      appState.currentFilename = '';
+
+      hideFilePicker();
+
+      // Should remain as is
+      expect(appState.currentPath).toHaveLength(1);
+      expect(appState.previousPath).toBeNull();
+    });
   });
 
   describe('initFilePickerResize', () => {

@@ -22,6 +22,7 @@ class AppState {
     // Previous file state (for restoration when canceling breadcrumb navigation)
     this.previousFileHandle = null;
     this.previousFilename = '';
+    this.previousPath = null; // For restoring path when canceling breadcrumb navigation
 
     // Navigation state
     this.navigationHistory = [];
@@ -176,6 +177,7 @@ class AppState {
     this.currentPath = [];
     this.previousFileHandle = null;
     this.previousFilename = '';
+    this.previousPath = null;
     this.navigationHistory = [];
     this.historyIndex = -1;
     this.isPopStateNavigation = false;
