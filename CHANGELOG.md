@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.1](https://github.com/zombar/hotnote.io/compare/v1.17.0...v1.17.1) (2025-11-11)
+
+
+### Bug Fixes
+
+* file picker metadata persists during breadcrumb navigation ([#73](https://github.com/zombar/hotnote.io/issues/73)) ([7dbdee6](https://github.com/zombar/hotnote.io/commit/7dbdee6d46d60a62689b7e28478b816a4191f41c))
+
 ## [1.17.0](https://github.com/zombar/hotnote.io/compare/v1.16.0...v1.17.0) (2025-11-11)
 
 ### Features
