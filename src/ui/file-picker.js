@@ -37,36 +37,9 @@ export const showFilePicker = async (dirHandle) => {
         return a.name.localeCompare(b.name);
       });
 
-      // Recreate file items (same logic as below)
+      // Recreate file items using shared function
       for (const entry of entries) {
-        const item = document.createElement('div');
-        item.className = `file-item ${entry.kind === 'directory' ? 'is-directory' : ''}`;
-
-        const icon = document.createElement('span');
-        icon.className = 'file-item-icon';
-        const iconSymbol = document.createElement('span');
-        iconSymbol.className = 'material-symbols-outlined';
-        iconSymbol.textContent = getFileIcon(entry.name, entry.kind === 'directory');
-        icon.appendChild(iconSymbol);
-
-        const name = document.createElement('span');
-        name.className = 'file-item-name';
-        name.textContent = entry.name;
-
-        item.appendChild(icon);
-        item.appendChild(name);
-
-        // Add click handler
-        item.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          appState.focusManager.saveFocusState();
-          if (entry.kind === 'directory') {
-            await navigateToDirectory(entry);
-          } else {
-            await openFileFromPicker(entry);
-          }
-        });
-
+        const item = await createFileItem(entry);
         fileList.appendChild(item);
       }
     }
@@ -131,94 +104,9 @@ export const showFilePicker = async (dirHandle) => {
     return a.name.localeCompare(b.name);
   });
 
-  // Create file items
+  // Create file items using shared function
   for (const entry of entries) {
-    const item = document.createElement('div');
-    item.className = `file-item ${entry.kind === 'directory' ? 'is-directory' : ''}`;
-
-    const icon = document.createElement('span');
-    icon.className = 'file-item-icon';
-    const iconSymbol = document.createElement('span');
-    iconSymbol.className = 'material-symbols-outlined';
-    iconSymbol.textContent = getFileIcon(entry.name, entry.kind === 'directory');
-    icon.appendChild(iconSymbol);
-
-    const name = document.createElement('span');
-    name.className = 'file-item-name';
-    name.textContent = entry.name;
-
-    // Check if file has temp changes
-    if (entry.kind === 'file') {
-      const pathParts = appState.currentPath.map((p) => p.name);
-      pathParts.push(entry.name);
-      const filePathKey = pathParts.join('/');
-      if (hasTempChanges(filePathKey)) {
-        item.classList.add('has-unsaved-changes');
-      }
-    }
-
-    item.appendChild(icon);
-    item.appendChild(name);
-
-    // Add metadata and delete button for files only
-    if (entry.kind === 'file') {
-      // Get file metadata (size, permissions)
-      const file = await entry.getFile();
-      const sizeKB =
-        file.size < 1024
-          ? file.size + ' B'
-          : file.size < 1024 * 1024
-            ? (file.size / 1024).toFixed(1) + ' KB'
-            : (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-
-      // Display file size
-      const metadata = document.createElement('span');
-      metadata.className = 'file-item-metadata';
-      metadata.textContent = sizeKB;
-      item.appendChild(metadata);
-
-      // Check if file is read-only
-      let lockIcon = null;
-      try {
-        const permission = await entry.queryPermission({ mode: 'readwrite' });
-        if (permission !== 'granted') {
-          lockIcon = document.createElement('span');
-          lockIcon.className = 'file-item-lock';
-          const lockSymbol = document.createElement('span');
-          lockSymbol.className = 'material-symbols-outlined';
-          lockSymbol.textContent = 'lock';
-          lockIcon.appendChild(lockSymbol);
-          lockIcon.title = 'Read-only';
-          item.appendChild(lockIcon);
-        }
-      } catch {
-        // Permission check not supported, ignore
-      }
-
-      // Add delete button with confirmation
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'file-item-delete';
-      const deleteIcon = document.createElement('span');
-      deleteIcon.className = 'material-symbols-outlined';
-      deleteIcon.textContent = 'close';
-      deleteBtn.appendChild(deleteIcon);
-      deleteBtn.addEventListener('click', async (e) => {
-        e.stopPropagation(); // Prevent opening the file
-        showDeleteConfirmation(item, entry, metadata, lockIcon);
-      });
-      item.appendChild(deleteBtn);
-    }
-
-    item.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      appState.focusManager.saveFocusState();
-      if (entry.kind === 'directory') {
-        await navigateToDirectory(entry);
-      } else {
-        await openFileFromPicker(entry);
-      }
-    });
-
+    const item = await createFileItem(entry);
     fileList.appendChild(item);
   }
 
@@ -333,6 +221,101 @@ export const initFilePickerResize = () => {
   resizeHandle.addEventListener('mousedown', onMouseDown);
   document.addEventListener('mousemove', onMouseMove);
   document.addEventListener('mouseup', onMouseUp);
+};
+
+/**
+ * Create a file item element with all metadata
+ * @param {FileSystemHandle} entry - File or directory entry
+ * @returns {Promise<HTMLElement>} File item element
+ */
+const createFileItem = async (entry) => {
+  const item = document.createElement('div');
+  item.className = `file-item ${entry.kind === 'directory' ? 'is-directory' : ''}`;
+
+  const icon = document.createElement('span');
+  icon.className = 'file-item-icon';
+  const iconSymbol = document.createElement('span');
+  iconSymbol.className = 'material-symbols-outlined';
+  iconSymbol.textContent = getFileIcon(entry.name, entry.kind === 'directory');
+  icon.appendChild(iconSymbol);
+
+  const name = document.createElement('span');
+  name.className = 'file-item-name';
+  name.textContent = entry.name;
+
+  // Check if file has temp changes
+  if (entry.kind === 'file') {
+    const pathParts = appState.currentPath.map((p) => p.name);
+    pathParts.push(entry.name);
+    const filePathKey = pathParts.join('/');
+    if (hasTempChanges(filePathKey)) {
+      item.classList.add('has-unsaved-changes');
+    }
+  }
+
+  item.appendChild(icon);
+  item.appendChild(name);
+
+  // Add metadata and delete button for files only
+  if (entry.kind === 'file') {
+    // Get file metadata (size, permissions)
+    const file = await entry.getFile();
+    const sizeKB =
+      file.size < 1024
+        ? file.size + ' B'
+        : file.size < 1024 * 1024
+          ? (file.size / 1024).toFixed(1) + ' KB'
+          : (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+
+    // Display file size
+    const metadata = document.createElement('span');
+    metadata.className = 'file-item-metadata';
+    metadata.textContent = sizeKB;
+    item.appendChild(metadata);
+
+    // Check if file is read-only
+    let lockIcon = null;
+    try {
+      const permission = await entry.queryPermission({ mode: 'readwrite' });
+      if (permission !== 'granted') {
+        lockIcon = document.createElement('span');
+        lockIcon.className = 'file-item-lock';
+        const lockSymbol = document.createElement('span');
+        lockSymbol.className = 'material-symbols-outlined';
+        lockSymbol.textContent = 'lock';
+        lockIcon.appendChild(lockSymbol);
+        lockIcon.title = 'Read-only';
+        item.appendChild(lockIcon);
+      }
+    } catch {
+      // Permission check not supported, ignore
+    }
+
+    // Add delete button with confirmation
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'file-item-delete';
+    const deleteIcon = document.createElement('span');
+    deleteIcon.className = 'material-symbols-outlined';
+    deleteIcon.textContent = 'close';
+    deleteBtn.appendChild(deleteIcon);
+    deleteBtn.addEventListener('click', async (e) => {
+      e.stopPropagation(); // Prevent opening the file
+      showDeleteConfirmation(item, entry, metadata, lockIcon);
+    });
+    item.appendChild(deleteBtn);
+  }
+
+  item.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    appState.focusManager.saveFocusState();
+    if (entry.kind === 'directory') {
+      await navigateToDirectory(entry);
+    } else {
+      await openFileFromPicker(entry);
+    }
+  });
+
+  return item;
 };
 
 /**
