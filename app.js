@@ -536,15 +536,22 @@ const attachTOCEventListeners = () => {
   tocItems.forEach((item) => {
     const textSpan = item.querySelector('.toc-text');
     if (textSpan) {
-      // Prevent mousedown from stealing focus from the editor
+      console.log('[TOC] Attaching listeners to:', textSpan.textContent);
+
+      // Use mouseup instead of click - preventDefault on mousedown blocks click in some browsers
       textSpan.addEventListener('mousedown', (e) => {
-        e.preventDefault(); // Critical: prevents focus from leaving the editor
+        console.log('[TOC] mousedown on:', textSpan.textContent);
+        e.preventDefault(); // Prevents focus from leaving the editor
+        e.stopPropagation(); // Prevents parent handlers from interfering
       });
 
-      textSpan.addEventListener('click', (e) => {
+      textSpan.addEventListener('mouseup', (e) => {
+        console.log('[TOC] mouseup on:', textSpan.textContent);
         e.stopPropagation();
         e.preventDefault();
         const pos = parseInt(item.dataset.pos, 10);
+
+        console.log('[TOC] Scrolling to heading at position:', pos);
 
         const editor = appState.editorManager?.getActiveEditor();
 
@@ -571,9 +578,11 @@ const attachTOCEventListeners = () => {
 
   // Click on chevron to toggle collapse
   chevrons.forEach((chevron) => {
-    // Prevent mousedown from stealing focus from the editor
+    // CRITICAL: We need preventDefault on mousedown AT THE ELEMENT LEVEL
+    // to prevent focus change, but this still allows click events to fire
     chevron.addEventListener('mousedown', (e) => {
-      e.preventDefault(); // Critical: prevents focus from leaving the editor
+      e.preventDefault(); // Prevents focus from leaving the editor
+      e.stopPropagation(); // Prevents parent handlers from interfering
     });
 
     chevron.addEventListener('click', (e) => {
@@ -659,8 +668,9 @@ const attachTOCEventListeners = () => {
 
 // Separate function to prevent mousedown from stealing focus
 function preventTOCMousedown(e) {
+  // Interactive elements (.toc-text, .toc-chevron) handle preventDefault themselves
+  // and call stopPropagation, so this handler only catches background elements
   e.preventDefault();
-  e.stopPropagation();
 
   // NOTE: Do NOT call editor.focus() here!
   // Calling focus scrolls to current cursor position, interfering with TOC navigation

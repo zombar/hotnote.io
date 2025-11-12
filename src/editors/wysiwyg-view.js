@@ -181,7 +181,8 @@ export class WYSIWYGView {
    * Get scroll position
    */
   getScrollPosition() {
-    const scroller = this.container.querySelector('.milkdown');
+    // The scrollable element is #editor, not .milkdown
+    const scroller = document.getElementById('editor');
     return scroller ? scroller.scrollTop : 0;
   }
 
@@ -189,7 +190,8 @@ export class WYSIWYGView {
    * Set scroll position
    */
   setScrollPosition(scrollTop) {
-    const scroller = this.container.querySelector('.milkdown');
+    // The scrollable element is #editor, not .milkdown
+    const scroller = document.getElementById('editor');
     if (scroller) {
       scroller.scrollTop = scrollTop;
     }
@@ -325,7 +327,11 @@ export class WYSIWYGView {
         // Scroll to the position using coordsAtPos which gives us the exact coordinates
         try {
           const coords = view.coordsAtPos(safePos);
-          const scroller = this.container.querySelector('.milkdown');
+          // The scrollable element is #editor, not .milkdown
+          const scroller = document.getElementById('editor');
+
+          console.log('[WYSIWYGView] Scroller element:', scroller);
+          console.log('[WYSIWYGView] Scroller scrollTop before:', scroller?.scrollTop);
 
           if (scroller && coords) {
             // Calculate scroll position to center the target in viewport
@@ -343,17 +349,26 @@ export class WYSIWYGView {
             // Scroll to the calculated position
             scroller.scrollTop = targetScrollTop;
 
-            console.log('[WYSIWYGView] Scrolled to position:', safePos);
+            console.log('[WYSIWYGView] Immediately after setting scrollTop:', scroller.scrollTop);
 
             // Verify scroll actually happened
             setTimeout(() => {
               const scrollPos = this.getScrollPosition();
-              console.log('[WYSIWYGView] Final scroll position:', scrollPos);
+              console.log('[WYSIWYGView] Final scroll position after 50ms:', scrollPos);
+              console.log('[WYSIWYGView] Scroller.scrollTop directly:', scroller.scrollTop);
             }, 50);
+
+            setTimeout(() => {
+              console.log('[WYSIWYGView] Scroll position after 200ms:', scroller.scrollTop);
+            }, 200);
           } else {
             console.warn(
               '[WYSIWYGView] Could not get coordinates or scroller for position:',
-              safePos
+              safePos,
+              'coords:',
+              coords,
+              'scroller:',
+              scroller
             );
           }
         } catch (error) {
