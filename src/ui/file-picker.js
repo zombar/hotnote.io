@@ -8,6 +8,84 @@ import { debounce } from '../utils/helpers.js';
 import { URLParamManager } from '../navigation/url-param-manager.js';
 
 /**
+ * Navigate to a specific line number in the editor
+ * @param {number} lineNumber - 1-based line number to jump to
+ * @returns {boolean} - True if navigation succeeded, false otherwise
+ */
+export const goToLine = (lineNumber) => {
+  // Check if editor is active and in code mode
+  const hasCodeEditor = appState.editorView !== null;
+  const hasMarkdownSource =
+    appState.editorManager !== null && appState.editorManager.getMode?.() === 'source';
+
+  if (!hasCodeEditor && !hasMarkdownSource) {
+    console.warn('[goToLine] Go-to-line only works in code/source mode');
+    return false;
+  }
+
+  // Validate line number is positive
+  if (lineNumber < 1) {
+    console.warn(`[goToLine] Invalid line number: ${lineNumber}`);
+    return false;
+  }
+
+  try {
+    // Get line count and validate bounds
+    let lineCount;
+    if (hasCodeEditor) {
+      lineCount = appState.editorView.state?.doc?.lines || 0;
+    } else if (hasMarkdownSource) {
+      // For markdown source mode, get line count from editor manager if available
+      const sourceView = appState.editorManager.getActiveEditor?.();
+      lineCount = sourceView?.getLineCount?.() || 0;
+    }
+
+    // Clamp line number to valid range (1 to lineCount)
+    const targetLine = Math.min(Math.max(1, lineNumber), lineCount || lineNumber);
+    if (targetLine !== lineNumber && lineCount > 0) {
+      console.warn(
+        `[goToLine] Line ${lineNumber} beyond document (${lineCount} lines), jumping to line ${targetLine}`
+      );
+    }
+
+    // Convert from 1-based user input to 0-based internal representation
+    const zeroBasedLine = targetLine - 1;
+
+    // Navigate to line
+    if (hasCodeEditor) {
+      // Direct CodeMirror editor (non-markdown files)
+      const doc = appState.editorView.state.doc;
+      const line = doc.line(targetLine); // CodeMirror line() is 1-based
+      const pos = line.from;
+
+      appState.editorView.dispatch({
+        selection: { anchor: pos, head: pos },
+        scrollIntoView: true,
+      });
+      appState.editorView.focus();
+    } else if (hasMarkdownSource) {
+      // Markdown source mode via EditorManager
+      if (appState.editorManager.setCursor) {
+        appState.editorManager.setCursor(zeroBasedLine, 0);
+      }
+      if (appState.editorManager.focus) {
+        setTimeout(() => {
+          // Check if editorManager still exists (may have been cleaned up in tests)
+          if (appState.editorManager && appState.editorManager.focus) {
+            appState.editorManager.focus();
+          }
+        }, 50);
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error('[goToLine] Error navigating to line:', error);
+    return false;
+  }
+};
+
+/**
  * Show file picker with current directory contents
  * @param {FileSystemDirectoryHandle} dirHandle - Directory to show
  */
@@ -671,7 +749,7 @@ const showFilenameInput = async (existingFilesOrPromise = [], initialValue = '')
     input = document.createElement('input');
     input.type = 'text';
     input.className = 'breadcrumb-input';
-    input.placeholder = 'filename (/ for search)';
+    input.placeholder = 'filename (/ search, :N goto line)';
     input.value = initialValue;
     input.autocomplete = 'off';
     input.dataset.hasListeners = 'true'; // Mark that listeners are attached
@@ -852,6 +930,23 @@ const showFilenameInput = async (existingFilesOrPromise = [], initialValue = '')
       // Validate filename
       if (!filename) {
         resolve(null);
+        return;
+      }
+
+      // Handle go-to-line command (:number)
+      const gotoLineMatch = filename.match(/^:(\d+)$/);
+      if (gotoLineMatch) {
+        const lineNumber = parseInt(gotoLineMatch[1], 10);
+        const success = goToLine(lineNumber);
+        if (success) {
+          // Close breadcrumb input and file picker
+          resolve(null);
+          hideFilePicker();
+        } else {
+          // Failed to navigate (not in code mode, etc)
+          // Just close the input and show file picker
+          resolve(null);
+        }
         return;
       }
 

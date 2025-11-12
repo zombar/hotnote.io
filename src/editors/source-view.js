@@ -184,6 +184,13 @@ export class SourceView {
   }
 
   /**
+   * Get total number of lines in document
+   */
+  getLineCount() {
+    return this.view.state.doc.lines;
+  }
+
+  /**
    * Get scroll position
    */
   getScrollPosition() {

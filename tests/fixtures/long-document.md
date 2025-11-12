@@ -54,6 +54,7 @@ Content paragraph four.
 Another major section with substantial content to test scrolling from various positions.
 
 List of items:
+
 - Item A with description
 - Item B with details
 - Item C with information
