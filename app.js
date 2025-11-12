@@ -326,9 +326,7 @@ const initCodeMirrorEditor = async (
   if (!hasFileOpen) {
     extensions.push(EditorState.readOnly.of(true));
     extensions.push(
-      placeholder(
-        'Open a file or create a new one to start editing (Cmd/Ctrl+Shift+O or Cmd/Ctrl+N)'
-      )
+      placeholder('Open a workspace to browse, edit, and create files (Cmd/Ctrl+Shift+O)')
     );
     extensions.push(EditorView.editable.of(false));
   }
@@ -360,7 +358,16 @@ let initialCollapseScheduled = false;
 // Update logo state based on whether a folder or file is open
 const updateLogoState = () => {
   const logo = document.querySelector('.app-logo');
-  if (logo && (appState.currentFileHandle || appState.currentDirHandle)) {
+  const hasWorkspace = appState.currentFileHandle || appState.currentDirHandle;
+
+  // Update footer visibility based on workspace state
+  if (hasWorkspace) {
+    document.body.setAttribute('data-has-workspace', 'true');
+  } else {
+    document.body.removeAttribute('data-has-workspace');
+  }
+
+  if (logo && hasWorkspace) {
     // Check if this is the first time (initial load)
     const isFirstLoad = !logo.dataset.initialized;
 
@@ -1471,6 +1478,9 @@ initThemeManager();
 
 // Initialize blur state
 updateEditorBlurState();
+
+// Initialize footer visibility based on workspace state
+updateLogoState();
 
 // Register service worker for PWA (disabled in development)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
