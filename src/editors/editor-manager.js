@@ -6,11 +6,18 @@ import { SourceView } from './source-view.js';
  * Only one editor is active at a time, eliminating position sync issues
  */
 export class EditorManager {
-  constructor(container, initialMode = 'wysiwyg', initialContent = '', onChange = null) {
+  constructor(
+    container,
+    initialMode = 'wysiwyg',
+    initialContent = '',
+    onChange = null,
+    readOnly = false
+  ) {
     this.container = container;
     this.currentMode = initialMode;
     this.currentEditor = null;
     this.onChangeCallback = onChange;
+    this.readOnly = readOnly;
 
     // Initialize the first editor
     this.initPromise = this.init(initialMode, initialContent);
@@ -18,9 +25,19 @@ export class EditorManager {
 
   async init(mode, content) {
     if (mode === 'source') {
-      this.currentEditor = new SourceView(this.container, content, this.onChangeCallback);
+      this.currentEditor = new SourceView(
+        this.container,
+        content,
+        this.onChangeCallback,
+        this.readOnly
+      );
     } else {
-      this.currentEditor = new WYSIWYGView(this.container, content, this.onChangeCallback);
+      this.currentEditor = new WYSIWYGView(
+        this.container,
+        content,
+        this.onChangeCallback,
+        this.readOnly
+      );
       await this.currentEditor.ready();
     }
     return this.currentEditor;
@@ -58,9 +75,19 @@ export class EditorManager {
 
     // 3. Create new editor
     if (newMode === 'source') {
-      this.currentEditor = new SourceView(this.container, state.content, this.onChangeCallback);
+      this.currentEditor = new SourceView(
+        this.container,
+        state.content,
+        this.onChangeCallback,
+        this.readOnly
+      );
     } else {
-      this.currentEditor = new WYSIWYGView(this.container, state.content, this.onChangeCallback);
+      this.currentEditor = new WYSIWYGView(
+        this.container,
+        state.content,
+        this.onChangeCallback,
+        this.readOnly
+      );
       await this.currentEditor.ready();
     }
 

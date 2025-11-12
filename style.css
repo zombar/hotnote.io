@@ -1599,7 +1599,7 @@ button:disabled:hover {
 
 /* Milkdown Editor Styles */
 .milkdown {
-  height: 100%;
+  min-height: 100%;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family:
@@ -1608,7 +1608,6 @@ button:disabled:hover {
   font-size: 1rem;
   line-height: 1.6;
   padding: 0 15% 0 1.5rem;
-  overflow: auto;
   display: flex;
   justify-content: flex-start; /* Left-align content, scrollbar at right edge */
 }
@@ -1625,15 +1624,14 @@ button:disabled:hover {
 }
 
 .milkdown .editor {
-  height: 100%;
+  min-height: 100%;
   outline: none;
 }
 
 .milkdown .ProseMirror {
   outline: none;
-  min-height: 100%;
-  padding: 4rem 0 7rem;
-  box-sizing: content-box;
+  min-height: 0;
+  padding: 2rem 0 7rem;
 }
 
 .milkdown .ProseMirror-focused {

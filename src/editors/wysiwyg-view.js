@@ -11,11 +11,12 @@ import { TextSelection } from '@milkdown/prose/state';
  * Provides a consistent interface for the editor manager
  */
 export class WYSIWYGView {
-  constructor(container, markdown = '', onChange = null) {
+  constructor(container, markdown = '', onChange = null, readOnly = false) {
     this.container = container;
     this.editor = null;
     this.currentMarkdown = markdown;
     this.onChangeCallback = onChange;
+    this.readOnly = readOnly;
     this.initPromise = this.init(markdown);
   }
 
@@ -26,13 +27,15 @@ export class WYSIWYGView {
           ctx.set(rootCtx, this.container);
           ctx.set(defaultValueCtx, initialContent);
 
-          // Set up change listener
-          ctx.get(listenerCtx).markdownUpdated((ctx, markdown) => {
-            this.currentMarkdown = markdown;
-            if (this.onChangeCallback) {
-              this.onChangeCallback(markdown);
-            }
-          });
+          // Set up change listener (only if not readonly)
+          if (!this.readOnly) {
+            ctx.get(listenerCtx).markdownUpdated((ctx, markdown) => {
+              this.currentMarkdown = markdown;
+              if (this.onChangeCallback) {
+                this.onChangeCallback(markdown);
+              }
+            });
+          }
         })
         .use(nord)
         .use(commonmark)
@@ -40,6 +43,17 @@ export class WYSIWYGView {
         .use(listener)
         .use(history)
         .create();
+
+      // Set readonly mode using ProseMirror's editable property
+      if (this.readOnly) {
+        this.editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          // Update the view's editable prop - this is the proper way to make ProseMirror readonly
+          view.setProps({ editable: () => false });
+          // Add readonly class for styling
+          this.container.classList.add('readonly-editor');
+        });
+      }
 
       return this.editor;
     } catch (error) {

@@ -77,9 +77,10 @@ const brandHighlightStyleDark = HighlightStyle.define([
  * Provides a consistent interface for the editor manager
  */
 export class SourceView {
-  constructor(container, markdown = '', onChange = null) {
+  constructor(container, markdown = '', onChange = null, readOnly = false) {
     this.container = container;
     this.onChangeCallback = onChange;
+    this.readOnly = readOnly;
     this.view = this.createEditor(markdown);
   }
 
@@ -88,47 +89,55 @@ export class SourceView {
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const highlightStyle = isDark ? brandHighlightStyleDark : brandHighlightStyle;
 
+    const extensions = [
+      lineNumbers(),
+      EditorView.lineWrapping, // Add line wrapping like regular CodeMirror
+      highlightActiveLineGutter(),
+      highlightSpecialChars(),
+      history(),
+      foldGutter(),
+      drawSelection(),
+      dropCursor(),
+      EditorState.allowMultipleSelections.of(true),
+      syntaxHighlighting(highlightStyle), // Use brand colors
+      bracketMatching(),
+      closeBrackets(),
+      autocompletion(),
+      rectangularSelection(),
+      crosshairCursor(),
+      highlightActiveLine(),
+      highlightSelectionMatches(),
+      markdown({
+        base: markdownLanguage,
+      }),
+      keymap.of([
+        ...closeBracketsKeymap,
+        ...defaultKeymap,
+        ...searchKeymap,
+        ...historyKeymap,
+        ...foldKeymap,
+        ...completionKeymap,
+        ...lintKeymap,
+        indentWithTab,
+      ]),
+      // Listen for document changes
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged && this.onChangeCallback) {
+          const content = update.state.doc.toString();
+          this.onChangeCallback(content);
+        }
+      }),
+    ];
+
+    // Add readonly extension if in readonly mode
+    if (this.readOnly) {
+      extensions.push(EditorState.readOnly.of(true));
+      extensions.push(EditorView.editable.of(false));
+    }
+
     const state = EditorState.create({
       doc: initialContent,
-      extensions: [
-        lineNumbers(),
-        EditorView.lineWrapping, // Add line wrapping like regular CodeMirror
-        highlightActiveLineGutter(),
-        highlightSpecialChars(),
-        history(),
-        foldGutter(),
-        drawSelection(),
-        dropCursor(),
-        EditorState.allowMultipleSelections.of(true),
-        syntaxHighlighting(highlightStyle), // Use brand colors
-        bracketMatching(),
-        closeBrackets(),
-        autocompletion(),
-        rectangularSelection(),
-        crosshairCursor(),
-        highlightActiveLine(),
-        highlightSelectionMatches(),
-        markdown({
-          base: markdownLanguage,
-        }),
-        keymap.of([
-          ...closeBracketsKeymap,
-          ...defaultKeymap,
-          ...searchKeymap,
-          ...historyKeymap,
-          ...foldKeymap,
-          ...completionKeymap,
-          ...lintKeymap,
-          indentWithTab,
-        ]),
-        // Listen for document changes
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged && this.onChangeCallback) {
-            const content = update.state.doc.toString();
-            this.onChangeCallback(content);
-          }
-        }),
-      ],
+      extensions,
     });
 
     return new EditorView({

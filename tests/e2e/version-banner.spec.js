@@ -291,4 +291,35 @@ test.describe('Version Banner', () => {
     const newBanner = newPage.locator('#version-banner');
     await expect(newBanner).toHaveClass(/hidden/);
   });
+
+  test('should display changelog link in update banner', async ({ page }) => {
+    // Mark as not first launch
+    await page.goto('/');
+    await page.evaluate(() => localStorage.setItem('hasSeenWelcome', 'true'));
+
+    // Mock version.json to return different version
+    await page.route('**/version.json*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ version: '1.4.2' }),
+      });
+    });
+
+    await page.reload();
+
+    // Wait for version check
+    await page.waitForTimeout(500);
+
+    const banner = page.locator('#version-banner');
+    await expect(banner).toBeVisible();
+
+    // Should contain changelog link
+    const message = banner.locator('.version-banner-message');
+    await expect(message).toContainText('View changelog');
+
+    // Verify the link has the correct gitreader parameter
+    const changelogLink = message.locator('a');
+    await expect(changelogLink).toHaveAttribute('href', /\?gitreader=.*CHANGELOG\.md/);
+  });
 });

@@ -38,6 +38,13 @@ class AppState {
     this.isRestoringSession = false; // Track if we're currently restoring from session
     this.lastRestorationTime = 0; // Track when we last restored state to prevent premature saves
 
+    // GitHub mode state
+    this.isGitHubMode = false; // Flag indicating GitHub reader mode
+    this.isReadOnly = false; // Flag indicating read-only mode (for GitHub and other remote files)
+    this.githubRepo = null; // GitHub repository info: {owner, repo, branch, path}
+    this.githubAdapter = null; // GitHubAdapter instance for API calls
+    this.remoteSource = null; // Remote source URL for the current file
+
     // Focus management
     this.focusManager = new FocusManager();
   }
@@ -85,6 +92,26 @@ class AppState {
 
   getFocusManager() {
     return this.focusManager;
+  }
+
+  getGitHubMode() {
+    return this.isGitHubMode;
+  }
+
+  getReadOnly() {
+    return this.isReadOnly;
+  }
+
+  getGitHubRepo() {
+    return this.githubRepo;
+  }
+
+  getGitHubAdapter() {
+    return this.githubAdapter;
+  }
+
+  getRemoteSource() {
+    return this.remoteSource;
   }
 
   // Setters
@@ -148,6 +175,26 @@ class AppState {
     this.lastRestorationTime = time;
   }
 
+  setGitHubMode(value) {
+    this.isGitHubMode = value;
+  }
+
+  setReadOnly(value) {
+    this.isReadOnly = value;
+  }
+
+  setGitHubRepo(repoInfo) {
+    this.githubRepo = repoInfo;
+  }
+
+  setGitHubAdapter(adapter) {
+    this.githubAdapter = adapter;
+  }
+
+  setRemoteSource(url) {
+    this.remoteSource = url;
+  }
+
   // Navigation history methods
   addToNavigationHistory(entry) {
     this.navigationHistory.push(entry);
@@ -186,6 +233,19 @@ class AppState {
     this.autosaveInterval = null;
     this.isRestoringSession = false;
     this.lastRestorationTime = 0;
+    this.isGitHubMode = false;
+    this.isReadOnly = false;
+    this.githubRepo = null;
+    this.githubAdapter = null;
+    this.remoteSource = null;
+  }
+
+  resetGitHubMode() {
+    this.isGitHubMode = false;
+    this.isReadOnly = false;
+    this.githubRepo = null;
+    this.githubAdapter = null;
+    this.remoteSource = null;
   }
 }
 

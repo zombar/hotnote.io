@@ -1,6 +1,7 @@
 import { EditorManager } from './src/editors/editor-manager.js';
 import { FileSystemAdapter, openFileByPath } from './src/fs/filesystem-adapter.js';
 import { createTrashManager } from './src/fs/trash-manager.js';
+import { GitHubAdapter } from './src/fs/github-adapter.js';
 import {
   brandHighlightStyle,
   brandHighlightStyleDark,
@@ -72,6 +73,9 @@ import {
   closeBracketsKeymap,
 } from '@codemirror/autocomplete';
 import { lintKeymap } from '@codemirror/lint';
+
+// Expose appState to window for testing purposes
+window.appState = appState;
 
 // Initialize session manager with FileSystemAdapter
 initSessionManager(FileSystemAdapter);
@@ -201,7 +205,8 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
       editorContainer,
       initialMode,
       initialContent,
-      handleContentChange
+      handleContentChange,
+      appState.isReadOnly
     );
     await appState.editorManager.ready();
 
@@ -741,14 +746,21 @@ const attachSuggestedLinksEventListeners = () => {
 const updateNewButtonState = () => {
   const newBtn = document.getElementById('new-btn');
   const hasWorkspace = appState.currentDirHandle !== null;
+  const inGitHubMode = appState.isGitHubMode;
 
-  newBtn.disabled = !hasWorkspace;
-
-  // Update tooltip to provide helpful feedback
-  if (hasWorkspace) {
-    newBtn.title = 'New file (Ctrl/Cmd+N)';
+  // In GitHub mode, disable the button
+  if (inGitHubMode) {
+    newBtn.disabled = true;
+    newBtn.title = 'Not available in read-only mode';
   } else {
-    newBtn.title = 'Open a folder first to create new files';
+    newBtn.disabled = !hasWorkspace;
+
+    // Update tooltip to provide helpful feedback
+    if (hasWorkspace) {
+      newBtn.title = 'New file (Ctrl/Cmd+N)';
+    } else {
+      newBtn.title = 'Open a folder first to create new files';
+    }
   }
 };
 
@@ -803,6 +815,9 @@ const openFolder = async () => {
     );
     return;
   }
+
+  // Exit GitHub reader mode if active
+  exitGitHubReader();
 
   // Close file picker when showing the open dialog
   hideFilePicker();
@@ -1304,8 +1319,8 @@ const toggleDarkMode = async () => {
     localStorage.setItem('theme', 'dark');
   }
 
-  // Reinitialize editor with new theme colors
-  if (appState.editorView || appState.editorManager) {
+  // Reinitialize editor with new theme colors (skip in GitHub reader mode)
+  if (!appState.isGitHubMode && (appState.editorView || appState.editorManager)) {
     const currentContent = getEditorContent();
 
     // Save editor state before destroying
@@ -1438,6 +1453,10 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', asy
 // Event listeners
 document.getElementById('new-btn').addEventListener('click', () => {
   appState.focusManager.saveFocusState();
+
+  // Exit GitHub reader mode if active
+  exitGitHubReader();
+
   newFile();
 });
 document.getElementById('back-btn').addEventListener('click', async () => {
@@ -1899,7 +1918,10 @@ const createVersionBanner = (type = 'update', customMessage = null) => {
       icon = '👋';
       showReloadBtn = false;
     } else {
-      message = 'New version available! Refresh to update.';
+      // Create gitreader link to the changelog
+      const changelogUrl = 'https://raw.githubusercontent.com/docutag/hotnote/main/CHANGELOG.md';
+      const gitreaderLink = `/?gitreader=${encodeURIComponent(changelogUrl)}`;
+      message = `New version available! <a href="${gitreaderLink}" style="color: inherit; text-decoration: underline;">View changelog</a>`;
       icon = 'ℹ';
       showReloadBtn = true;
     }
@@ -1978,7 +2000,10 @@ const updateBannerContent = (type = 'update', customMessage = null) => {
       icon = '👋';
       showReloadBtn = false;
     } else {
-      message = 'New version available! Refresh to update.';
+      // Create gitreader link to the changelog
+      const changelogUrl = 'https://raw.githubusercontent.com/docutag/hotnote/main/CHANGELOG.md';
+      const gitreaderLink = `/?gitreader=${encodeURIComponent(changelogUrl)}`;
+      message = `New version available! <a href="${gitreaderLink}" style="color: inherit; text-decoration: underline;">View changelog</a>`;
       icon = 'ℹ';
       showReloadBtn = true;
     }
@@ -2051,6 +2076,206 @@ const performVersionCheck = async () => {
   }
 };
 
+// Exit GitHub Reader Mode - restore normal UI state
+function exitGitHubReader() {
+  if (!appState.isGitHubMode) {
+    return; // Not in GitHub mode, nothing to do
+  }
+
+  // Reset GitHub mode state
+  appState.resetGitHubMode();
+
+  // Restore UI elements
+  const richToggleBtn = document.getElementById('rich-toggle-btn');
+  if (richToggleBtn) {
+    richToggleBtn.style.display = '';
+  }
+
+  const filePickerBtn = document.getElementById('file-picker-btn');
+  if (filePickerBtn) {
+    filePickerBtn.style.display = '';
+  }
+
+  // Show Related Files section again
+  const suggestedLinks = document.getElementById('suggested-links');
+  if (suggestedLinks) {
+    suggestedLinks.style.display = '';
+  }
+  const suggestedLinksMobile = document.getElementById('suggested-links-mobile');
+  if (suggestedLinksMobile) {
+    suggestedLinksMobile.style.display = '';
+  }
+
+  // Re-enable autosave
+  appState.setAutosaveEnabled(true);
+
+  // Re-enable autosave checkbox
+  const autosaveCheckbox = document.getElementById('autosave-checkbox');
+  if (autosaveCheckbox) {
+    autosaveCheckbox.disabled = false;
+    autosaveCheckbox.checked = true; // Set to checked since autosave is enabled
+  }
+
+  // Clear gitreader URL parameter
+  URLParamManager.clearGitReader();
+
+  // Update new button state to restore normal behavior
+  updateNewButtonState();
+
+  console.log('Exited GitHub reader mode');
+}
+
+// GitHub Reader Mode - Load file from GitHub URL
+async function initGitHubReader(githubUrl) {
+  // Blur editor while loading
+  const editorContainer = document.getElementById('editor');
+  if (editorContainer) {
+    editorContainer.style.filter = 'blur(4px)';
+    editorContainer.style.pointerEvents = 'none';
+  }
+
+  try {
+    // Parse GitHub URL
+    const repoInfo = GitHubAdapter.parseURL(githubUrl);
+    const adapter = new GitHubAdapter(repoInfo.owner, repoInfo.repo, repoInfo.branch);
+
+    // Set GitHub mode in app state
+    appState.setGitHubMode(true);
+    appState.setReadOnly(true);
+    appState.setGitHubRepo(repoInfo);
+    appState.setGitHubAdapter(adapter);
+    appState.setRemoteSource(githubUrl);
+
+    // Fetch file content
+    const content = await adapter.readFile(repoInfo.path);
+
+    // Extract filename from path
+    const filename = repoInfo.path.split('/').pop();
+    appState.setCurrentFilename(filename);
+
+    // Update document title to show the filename
+    document.title = filename;
+
+    // Initialize editor with content in readonly mode
+    if (isMarkdownFile(filename)) {
+      // Clear the editor container first
+      const editorContainer = document.getElementById('editor');
+      editorContainer.innerHTML = '';
+
+      // Destroy existing editors
+      if (appState.editorManager) {
+        appState.editorManager.destroy();
+        appState.editorManager = null;
+      }
+      if (appState.editorView) {
+        appState.editorView.destroy();
+        appState.editorView = null;
+      }
+
+      // Create new editor manager in readonly mode
+      appState.editorManager = new EditorManager(editorContainer, 'wysiwyg', content, null, true);
+      await appState.editorManager.ready();
+
+      // Show TOC sidebar for markdown
+      const markdownSidebar = document.getElementById('markdown-sidebar');
+      if (markdownSidebar) {
+        markdownSidebar.classList.remove('hidden');
+      }
+
+      // Hide Related Files section in GitHub mode
+      const suggestedLinks = document.getElementById('suggested-links');
+      if (suggestedLinks) {
+        suggestedLinks.style.display = 'none';
+      }
+      const suggestedLinksMobile = document.getElementById('suggested-links-mobile');
+      if (suggestedLinksMobile) {
+        suggestedLinksMobile.style.display = 'none';
+      }
+
+      // Generate TOC for the markdown content
+      setTimeout(() => {
+        updateTOC();
+      }, 500);
+    } else {
+      if (!appState.editorView) {
+        await initEditor();
+      }
+      const transaction = appState.editorView.state.update({
+        changes: {
+          from: 0,
+          to: appState.editorView.state.doc.length,
+          insert: content,
+        },
+      });
+      appState.editorView.dispatch(transaction);
+    }
+
+    // Mark as clean (not dirty)
+    appState.markDirty(false);
+    appState.setOriginalContent(content);
+
+    // Disable autosave in read-only mode
+    appState.setAutosaveEnabled(false);
+    if (autosaveManager) {
+      autosaveManager.stop();
+    }
+
+    // Disable autosave checkbox and keep label visible
+    const autosaveCheckbox = document.getElementById('autosave-checkbox');
+    const autosaveLabel = document.getElementById('autosave-label');
+    if (autosaveCheckbox) {
+      autosaveCheckbox.disabled = true;
+      autosaveCheckbox.checked = false;
+    }
+    if (autosaveLabel) {
+      // Keep label visible and remove any animation classes
+      autosaveLabel.classList.remove('hidden', 'fade-out');
+    }
+
+    // Update breadcrumb to show filename
+    updateBreadcrumb();
+
+    // Hide UI elements that don't make sense in GitHub reader mode
+    const richToggleBtn = document.getElementById('rich-toggle-btn');
+    if (richToggleBtn) {
+      richToggleBtn.style.display = 'none';
+    }
+
+    // Hide file picker button in GitHub mode (no workspace to browse)
+    const filePickerBtn = document.getElementById('file-picker-btn');
+    if (filePickerBtn) {
+      filePickerBtn.style.display = 'none';
+    }
+
+    console.log(`Loaded GitHub file: ${repoInfo.owner}/${repoInfo.repo}/${repoInfo.path}`);
+
+    // Update new button state to keep it enabled in GitHub mode
+    updateNewButtonState();
+
+    // Remove blur from editor
+    if (editorContainer) {
+      editorContainer.style.filter = '';
+      editorContainer.style.pointerEvents = '';
+    }
+
+    // Show toast notification
+    showFileReloadNotification('Viewing in read-only mode');
+
+    return true;
+  } catch (error) {
+    console.error('Failed to load GitHub file:', error);
+    alert(`Failed to load file from GitHub: ${error.message}`);
+
+    // Remove loading overlay on error
+    const overlay = document.getElementById('github-loading-overlay');
+    if (overlay && overlay.parentNode) {
+      overlay.parentNode.removeChild(overlay);
+    }
+
+    return false;
+  }
+}
+
 // Register service worker for offline support (disabled in development)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker
@@ -2105,7 +2330,18 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.URLParamManager = URLParamManager;
 
   // Check URL params first, then fallback to saved folder or welcome prompt
-  setTimeout(() => {
+  setTimeout(async () => {
+    // Check for GitHub reader mode first
+    const gitreaderUrl = URLParamManager.getGitReader();
+    if (gitreaderUrl) {
+      const success = await initGitHubReader(gitreaderUrl);
+      if (success) {
+        return; // GitHub file loaded successfully
+      }
+      // If loading failed, continue with normal flow
+      URLParamManager.clearGitReader();
+    }
+
     // Validate URL parameters
     const urlParams = URLParamManager.validate();
 

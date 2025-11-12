@@ -7,10 +7,12 @@
  * URL Schema:
  * - ?workdir=/path/to/folder              (workspace only)
  * - ?workdir=/path/to/folder&file=doc.md  (workspace + file)
+ * - ?gitreader=https://raw.githubusercontent.com/owner/repo/branch/file.md (GitHub reader mode)
  *
  * Validation Rules:
  * - file param REQUIRES workdir param
  * - file without workdir = INVALID (both params cleared)
+ * - gitreader param is independent of workdir/file
  * - Empty values treated as no value
  */
 
@@ -69,6 +71,33 @@ export class URLParamManager {
   static getFile() {
     const { file } = this.validate();
     return file;
+  }
+
+  /**
+   * Get gitreader parameter value
+   * Returns null if empty or doesn't exist
+   *
+   * @returns {string|null}
+   */
+  static getGitReader() {
+    const params = new URLSearchParams(window.location.search);
+    const gitreader = params.get('gitreader');
+
+    // Treat empty strings as null
+    if (gitreader === '' || gitreader === null) {
+      return null;
+    }
+
+    return gitreader;
+  }
+
+  /**
+   * Check if gitreader parameter exists and has a value
+   *
+   * @returns {boolean}
+   */
+  static hasGitReader() {
+    return this.getGitReader() !== null;
   }
 
   /**
@@ -144,7 +173,7 @@ export class URLParamManager {
 
   /**
    * Clear URL parameters (workdir and file)
-   * Preserves other unrelated query parameters
+   * Preserves other unrelated query parameters including gitreader
    */
   static clear() {
     const url = new URL(window.location.href);
@@ -152,5 +181,38 @@ export class URLParamManager {
     url.searchParams.delete('file');
 
     window.history.replaceState(null, '', url.pathname + url.search);
+  }
+
+  /**
+   * Set gitreader URL parameter
+   * Clears gitreader if url is null or empty
+   * Preserves other query parameters
+   *
+   * @param {string|null} url - GitHub URL to read from
+   */
+  static setGitReader(url) {
+    // Treat empty strings as null
+    if (url === '' || url === null) {
+      this.clearGitReader();
+      return;
+    }
+
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('gitreader', url);
+
+    const searchString = currentUrl.search;
+    window.history.replaceState(null, '', currentUrl.pathname + searchString);
+  }
+
+  /**
+   * Clear gitreader URL parameter
+   * Preserves other query parameters
+   */
+  static clearGitReader() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('gitreader');
+
+    const searchString = url.search;
+    window.history.replaceState(null, '', url.pathname + searchString);
   }
 }
