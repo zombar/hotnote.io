@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.1](https://github.com/zombar/hotnote.io/compare/v1.19.0...v1.19.1) (2025-11-12)
+
+
+### Bug Fixes
+
+* hide footer in gitreader mode ([#83](https://github.com/zombar/hotnote.io/issues/83)) ([c74838b](https://github.com/zombar/hotnote.io/commit/c74838bf7c38156478b2dac841c4ab771aeb8c72))
+
 ## [1.19.0](https://github.com/zombar/hotnote.io/compare/v1.18.1...v1.19.0) (2025-11-12)
 
 
