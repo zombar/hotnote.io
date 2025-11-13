@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.2](https://github.com/zombar/hotnote.io/compare/v1.20.1...v1.20.2) (2025-11-13)
+
+
+### Bug Fixes
+
+* no comments in gitreader ([#93](https://github.com/zombar/hotnote.io/issues/93)) ([542b1bb](https://github.com/zombar/hotnote.io/commit/542b1bb60693631e4d48c983406464fa6cad1acf))
+
 ## [1.20.1](https://github.com/zombar/hotnote.io/compare/v1.20.0...v1.20.1) (2025-11-13)
 
 
