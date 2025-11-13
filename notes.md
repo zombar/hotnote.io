@@ -4,7 +4,7 @@
 
 * need to fix code -> RTF / MD editor -> code cursor positions, it doesn't end up where it should
 
-* BUG: sometimes messages disappear when the test above then is change
+* BUG: sometimes messages disappear when the test above then is changed
 
 - add the history functions, should have a repeatable list of char recordings (up to the last point saved) it should be active only when autosave is disabled
 

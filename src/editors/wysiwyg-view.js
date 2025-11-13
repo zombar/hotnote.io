@@ -80,8 +80,9 @@ function createDecorationSet(doc, comments, activeCommentId) {
     const className = isActive ? 'comment-highlight active' : 'comment-highlight';
 
     // Ensure positions are within document bounds
-    const from = Math.max(0, Math.min(position.from, doc.content.size));
-    const to = Math.max(from, Math.min(position.to, doc.content.size));
+    // Note: ProseMirror positions need adjustment - add 1 to account for document structure
+    const from = Math.max(0, Math.min(position.from + 1, doc.content.size));
+    const to = Math.max(from, Math.min(position.to + 1, doc.content.size));
 
     if (from < to) {
       decorations.push(

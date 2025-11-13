@@ -53,6 +53,7 @@ import {
 } from './src/storage/session-manager.js';
 import { getUserId, getUserDisplayName } from './src/storage/user-manager.js';
 import { createAnchor, findAnchorPosition } from './src/utils/text-anchor.js';
+import { validateAllComments } from './src/utils/comment-validator.js';
 import { CommentToolbar } from './src/ui/comment-toolbar.js';
 import { CommentPanel } from './src/ui/comment-panel.js';
 import {
@@ -203,6 +204,9 @@ const initEditor = async (initialContent = '', filename = 'untitled') => {
     ) {
       debouncedUpdateTOC();
     }
+
+    // Validate comment positions after content changes
+    debouncedValidateComments();
   };
 
   if (isMarkdownFile(filename)) {
@@ -1778,6 +1782,129 @@ const debouncedSaveEditorState = createDebouncedSaveEditorState(getRelativeFileP
 
 // Debounced TOC update (update every 500ms after typing stops)
 const debouncedUpdateTOC = debounce(updateTOC, 500);
+
+// Debounced comment validation (validate every 500ms after typing stops)
+const debouncedValidateComments = debounce(async () => {
+  try {
+    console.log('[Comments] Validation triggered');
+
+    // Skip if in read-only mode or no comments
+    if (appState.isReadOnly) {
+      console.log('[Comments] Skipping validation - read-only mode');
+      return;
+    }
+
+    if (appState.comments.length === 0) {
+      console.log('[Comments] Skipping validation - no comments');
+      return;
+    }
+
+    // Get current document content
+    let content = '';
+    if (appState.editorManager) {
+      content = appState.editorManager.getContent();
+    } else if (appState.editorView) {
+      content = appState.editorView.state.doc.toString();
+    }
+
+    if (!content) {
+      console.log('[Comments] Skipping validation - no content');
+      return;
+    }
+
+    // Get comments for current file
+    const currentFilePath = getRelativeFilePath();
+    const fileComments = appState.getCommentsForFile(currentFilePath);
+
+    console.log(
+      '[Comments] Validating',
+      fileComments.length,
+      'comments for file:',
+      currentFilePath
+    );
+
+    if (fileComments.length === 0) {
+      return;
+    }
+
+    // Validate all comments
+    const validationResults = validateAllComments(content, fileComments);
+    console.log('[Comments] Validation results:', JSON.stringify(validationResults, null, 2));
+    console.log(
+      '[Comments] Document content length:',
+      content.length,
+      'content:',
+      JSON.stringify(content.substring(0, 100))
+    );
+
+    // Log each comment being validated
+    fileComments.forEach((comment, i) => {
+      console.log(`[Comments] Comment ${i}:`, {
+        id: comment.id,
+        anchor: comment.anchor,
+        fallbackPosition: comment.fallbackPosition,
+      });
+    });
+
+    let needsSessionSave = false;
+
+    for (const result of validationResults) {
+      if (result.action === 'delete') {
+        // Delete the comment
+        console.log('[Comments] Deleting comment with no nearby words:', result.commentId);
+        await handleDelete(result.commentId);
+        needsSessionSave = true;
+      } else if (result.action === 'snap' && result.position) {
+        // Update comment position to snap to nearest word
+        console.log(
+          '[Comments] Snapping comment to nearest word:',
+          result.commentId,
+          'from',
+          result.position.from,
+          'to',
+          result.position.to
+        );
+        const comment = appState.comments.find((c) => c.id === result.commentId);
+        if (comment) {
+          // Update the anchor with new position
+          const newAnchor = createAnchor(content, result.position.from, result.position.to);
+          comment.anchor = newAnchor;
+          comment.fallbackPosition = {
+            from: { line: 0, col: result.position.from },
+            to: { line: 0, col: result.position.to },
+          };
+          appState.updateComment(result.commentId, comment);
+          needsSessionSave = true;
+        }
+      }
+      // 'keep' action - no changes needed
+    }
+
+    // Refresh comment decorations if any changes were made
+    if (needsSessionSave) {
+      refreshCommentDecorations();
+    }
+
+    // Save session if any changes were made
+    if (needsSessionSave) {
+      try {
+        const sessionData = await loadSessionFile(appState.rootDirHandle);
+        if (sessionData) {
+          await saveSessionFile(appState.rootDirHandle, sessionData);
+        }
+      } catch (err) {
+        console.error('[Comments] Error saving comment updates:', err);
+      }
+
+      // Refresh comment panel if visible
+      if (appState.commentPanelVisible && window.commentPanel) {
+        window.commentPanel.refresh();
+      }
+    }
+  } catch (error) {
+    console.error('[Comments] Error during validation:', error);
+  }
+}, 500);
 
 // Fuzzy match helper - handles case-insensitive, substring, and space-as-wildcard matching
 
