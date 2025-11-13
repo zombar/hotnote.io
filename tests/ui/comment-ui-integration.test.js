@@ -681,4 +681,360 @@ describe('Comment UI Integration', () => {
       expect(toolbar.isVisible()).toBe(false);
     });
   });
+
+  describe('Comment Panel Paste and Input Interaction', () => {
+    beforeEach(() => {
+      // Create a mock editor for these tests
+      const editor = document.createElement('div');
+      editor.id = 'editor';
+      const editorContent = document.createElement('div');
+      editorContent.className = 'cm-content';
+      editorContent.contentEditable = 'true';
+      editor.appendChild(editorContent);
+      document.body.appendChild(editor);
+      editorContent.focus();
+    });
+
+    afterEach(() => {
+      // Clean up editor
+      const editor = document.getElementById('editor');
+      if (editor) {
+        document.body.removeChild(editor);
+      }
+    });
+
+    it('should not hide panel when clicking inside the comment textarea', () => {
+      const comment = {
+        id: 'test-1',
+        thread: [],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+      expect(panel.isVisible()).toBe(true);
+
+      // Click inside the textarea
+      const commentInput = document.querySelector('.comment-input');
+      const clickEvent = new Event('click', {
+        bubbles: true,
+        cancelable: true,
+      });
+      commentInput.dispatchEvent(clickEvent);
+
+      // Panel should still be visible
+      expect(panel.isVisible()).toBe(true);
+    });
+
+    it('should not hide panel when pasting into the comment textarea', () => {
+      const comment = {
+        id: 'test-1',
+        thread: [],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+      expect(panel.isVisible()).toBe(true);
+
+      // Focus the textarea
+      const commentInput = document.querySelector('.comment-input');
+      commentInput.focus();
+
+      // Simulate paste event
+      const pasteEvent = new ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: new DataTransfer(),
+      });
+      commentInput.dispatchEvent(pasteEvent);
+
+      // Simulate input after paste
+      commentInput.value = 'Pasted text content';
+      const inputEvent = new Event('input', { bubbles: true });
+      commentInput.dispatchEvent(inputEvent);
+
+      // Panel should still be visible
+      expect(panel.isVisible()).toBe(true);
+    });
+
+    it('should not hide panel when clicking anywhere inside panel', () => {
+      const comment = {
+        id: 'test-1',
+        thread: [{ userId: 'user-1', userName: 'Test User', text: 'Test', timestamp: Date.now() }],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+      expect(panel.isVisible()).toBe(true);
+
+      // Click on the panel body
+      const panelBody = document.querySelector('.comment-panel-body');
+      const clickEvent = new Event('click', {
+        bubbles: true,
+        cancelable: true,
+      });
+      panelBody.dispatchEvent(clickEvent);
+
+      // Panel should still be visible
+      expect(panel.isVisible()).toBe(true);
+    });
+
+    it('should prevent panel from hiding while input is focused', () => {
+      const comment = {
+        id: 'test-1',
+        thread: [],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+      expect(panel.isVisible()).toBe(true);
+
+      // Focus the textarea
+      const commentInput = document.querySelector('.comment-input');
+      commentInput.focus();
+
+      // inputActive flag should be set
+      expect(panel.inputActive).toBe(true);
+
+      // Try to hide the panel (without force)
+      panel.hide(false, false);
+
+      // Panel should still be visible because input is active
+      expect(panel.isVisible()).toBe(true);
+    });
+
+    it('should allow panel to hide after input loses focus', () => {
+      const comment = {
+        id: 'test-1',
+        thread: [],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+      expect(panel.isVisible()).toBe(true);
+
+      // Focus the textarea
+      const commentInput = document.querySelector('.comment-input');
+      commentInput.focus();
+      expect(panel.inputActive).toBe(true);
+
+      // Blur the textarea
+      commentInput.blur();
+      expect(panel.inputActive).toBe(false);
+
+      // Now hide should work
+      panel.hide(false, false);
+
+      // Panel should be hidden
+      expect(panel.isVisible()).toBe(false);
+    });
+
+    it('should force hide panel when close button is clicked even if input is focused', () => {
+      const comment = {
+        id: 'test-1',
+        thread: [],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+      expect(panel.isVisible()).toBe(true);
+
+      // Focus the textarea
+      const commentInput = document.querySelector('.comment-input');
+      commentInput.focus();
+      expect(panel.inputActive).toBe(true);
+
+      // Click the close button
+      const closeBtn = document.querySelector('.comment-panel-close');
+      closeBtn.click();
+
+      // Panel should be hidden (force hide)
+      expect(panel.isVisible()).toBe(false);
+    });
+
+    it('should still hide panel when clicking on editor content', () => {
+      const comment = {
+        id: 'test-1',
+        thread: [],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+      expect(panel.isVisible()).toBe(true);
+
+      // Click on the editor content
+      const editorContent = document.querySelector('.cm-content');
+      const clickEvent = new Event('click', {
+        bubbles: true,
+        cancelable: true,
+      });
+      editorContent.dispatchEvent(clickEvent);
+
+      // Panel should be hidden
+      expect(panel.isVisible()).toBe(false);
+    });
+
+    it('should not blur editor when focusing comment input', () => {
+      const editorContent = document.querySelector('.cm-content');
+      editorContent.focus();
+      expect(document.activeElement).toBe(editorContent);
+
+      const comment = {
+        id: 'test-1',
+        thread: [],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+
+      // Click on the comment input
+      const commentInput = document.querySelector('.comment-input');
+      commentInput.click();
+      commentInput.focus();
+
+      // Comment input should now have focus (not editor)
+      expect(document.activeElement).toBe(commentInput);
+
+      // Editor should still be in the DOM and visible
+      const editor = document.getElementById('editor');
+      expect(editor.isConnected).toBe(true);
+    });
+
+    it('should track input focus state correctly during typing', () => {
+      const comment = {
+        id: 'test-1',
+        thread: [],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+      expect(panel.inputActive).toBeFalsy();
+
+      // Focus the textarea
+      const commentInput = document.querySelector('.comment-input');
+      commentInput.focus();
+      expect(panel.inputActive).toBe(true);
+
+      // Type some text
+      commentInput.value = 'T';
+      commentInput.value = 'Te';
+      commentInput.value = 'Test';
+
+      // Should still be tracking as active
+      expect(panel.inputActive).toBe(true);
+
+      // Blur
+      commentInput.blur();
+      expect(panel.inputActive).toBe(false);
+    });
+
+    it('should handle paste with Ctrl+V keyboard event', () => {
+      const comment = {
+        id: 'test-1',
+        thread: [],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+      expect(panel.isVisible()).toBe(true);
+
+      // Focus the textarea
+      const commentInput = document.querySelector('.comment-input');
+      commentInput.focus();
+
+      // Simulate Ctrl+V
+      const ctrlVEvent = new KeyboardEvent('keydown', {
+        key: 'v',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      commentInput.dispatchEvent(ctrlVEvent);
+
+      // Simulate paste event
+      const pasteEvent = new ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+      });
+      commentInput.dispatchEvent(pasteEvent);
+
+      // Add pasted content
+      commentInput.value = 'Pasted from clipboard';
+
+      // Panel should still be visible
+      expect(panel.isVisible()).toBe(true);
+
+      // Input should still have focus
+      expect(document.activeElement).toBe(commentInput);
+    });
+
+    it('should handle paste with Cmd+V keyboard event (macOS)', () => {
+      const comment = {
+        id: 'test-1',
+        thread: [],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+      expect(panel.isVisible()).toBe(true);
+
+      // Focus the textarea
+      const commentInput = document.querySelector('.comment-input');
+      commentInput.focus();
+
+      // Simulate Cmd+V
+      const cmdVEvent = new KeyboardEvent('keydown', {
+        key: 'v',
+        metaKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      commentInput.dispatchEvent(cmdVEvent);
+
+      // Simulate paste event
+      const pasteEvent = new ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+      });
+      commentInput.dispatchEvent(pasteEvent);
+
+      // Add pasted content
+      commentInput.value = 'Pasted from clipboard';
+
+      // Panel should still be visible
+      expect(panel.isVisible()).toBe(true);
+
+      // Input should still have focus
+      expect(document.activeElement).toBe(commentInput);
+    });
+
+    it('should force hide panel when deleting a comment', () => {
+      const comment = {
+        id: 'test-1',
+        thread: [{ userId: 'user-1', userName: 'Test', text: 'Test', timestamp: Date.now() }],
+        resolved: false,
+      };
+
+      panel.show(comment, 100, 200);
+      expect(panel.isVisible()).toBe(true);
+
+      // Focus the textarea
+      const commentInput = document.querySelector('.comment-input');
+      commentInput.focus();
+      expect(panel.inputActive).toBe(true);
+
+      // Mock window.confirm to return true
+      const originalConfirm = window.confirm;
+      window.confirm = vi.fn(() => true);
+
+      // Click delete button
+      const deleteBtn = document.querySelector('.delete-btn');
+      deleteBtn.click();
+
+      // Panel should be hidden even though input was focused
+      expect(panel.isVisible()).toBe(false);
+
+      // Restore confirm
+      window.confirm = originalConfirm;
+    });
+  });
 });

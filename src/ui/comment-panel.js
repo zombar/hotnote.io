@@ -63,17 +63,26 @@ export class CommentPanel {
 
     // Prevent panel from stealing focus, except for the input field
     this.panel.addEventListener('mousedown', (e) => {
-      // Allow input to receive focus naturally so user can type
-      if (e.target === replyInput) {
+      // Allow input to receive focus naturally so user can type and paste
+      if (e.target === replyInput || replyInput.contains(e.target)) {
         return;
       }
       // Prevent default on other elements to avoid unnecessary focus changes
       e.preventDefault();
     });
 
+    // Track when user is actively typing in the input
+    replyInput.addEventListener('focus', () => {
+      this.inputActive = true;
+    });
+
+    replyInput.addEventListener('blur', () => {
+      this.inputActive = false;
+    });
+
     // Close button
     const closeBtn = this.panel.querySelector('.comment-panel-close');
-    closeBtn.addEventListener('click', () => this.hide());
+    closeBtn.addEventListener('click', () => this.hide(false, true)); // Force hide
 
     submitBtn.addEventListener('click', () => this.handleReply());
 
@@ -95,8 +104,13 @@ export class CommentPanel {
     this.scrollHandler = () => this.hide(true); // Skip focus restore on scroll
     window.addEventListener('scroll', this.scrollHandler, true);
 
-    // Hide panel when clicking on editor
+    // Hide panel when clicking on editor (but not when interacting with panel)
     this.editorClickHandler = (e) => {
+      // Don't hide if clicking inside the panel itself
+      if (this.panel.contains(e.target)) {
+        return;
+      }
+
       // Check if click is on editor content (not on panel)
       const editorElements = document.querySelectorAll('#editor .cm-content, #editor .ProseMirror');
       for (const editorEl of editorElements) {
@@ -145,8 +159,14 @@ export class CommentPanel {
   /**
    * Hide the panel
    * @param {boolean} skipFocusRestore - Skip restoring focus to editor
+   * @param {boolean} force - Force hide even if input is active
    */
-  hide(skipFocusRestore = false) {
+  hide(skipFocusRestore = false, force = false) {
+    // Don't hide if user is actively typing in the input (unless forced)
+    if (this.inputActive && !force) {
+      return;
+    }
+
     this.panel.classList.remove('visible');
     this.comment = null;
     this.inputActive = false; // Reset input active state
@@ -299,7 +319,7 @@ export class CommentPanel {
     if (this.comment && this.onDelete) {
       if (window.confirm('Delete this comment thread?')) {
         this.onDelete(this.comment.id);
-        this.hide();
+        this.hide(false, true); // Force hide after deletion
       }
     }
   }

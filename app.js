@@ -1359,7 +1359,7 @@ let commentPanel = null;
 // Helper function to close comment UI elements
 const closeComments = () => {
   if (commentPanel) {
-    commentPanel.hide();
+    commentPanel.hide(false, true); // Force hide
   }
   if (commentToolbar) {
     commentToolbar.hide();
