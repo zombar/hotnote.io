@@ -18,6 +18,8 @@
 
   * don't clear the trash automatically, offer a toaster popup to the user when opening the workspace 'take out the trash?'
 
+  * when moving a file to the trash, the file should be closed in the editors / viewer
+
 ### Unprioritized
 
 * prettify the chat experience

@@ -15,10 +15,14 @@ vi.mock('../src/editors/source-view.js', () => ({
     getCursor() {
       return { line: 0, column: 0 };
     }
+    getAbsoluteCursor() {
+      return 0;
+    }
     getScrollPosition() {
       return 0;
     }
     setCursor() {}
+    setAbsoluteCursor() {}
     setScrollPosition() {}
     focus() {}
     destroy() {}
@@ -50,10 +54,14 @@ vi.mock('../src/editors/wysiwyg-view.js', () => ({
     getCursor() {
       return { line: 5, column: 10 };
     }
+    getAbsoluteCursor() {
+      return 50;
+    }
     getScrollPosition() {
       return 100;
     }
     setCursor() {}
+    setAbsoluteCursor() {}
     setScrollPosition() {}
     focus() {}
     destroy() {}

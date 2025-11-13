@@ -7,6 +7,7 @@ import { gfm } from '@milkdown/preset-gfm';
 import { $prose } from '@milkdown/utils';
 import { TextSelection, Plugin, PluginKey } from '@milkdown/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/prose/view';
+import { markdownOffsetToRendered, renderedOffsetToMarkdown } from './position-converter.js';
 
 // Plugin key for comment decorations
 const commentDecorationKey = new PluginKey('commentDecorations');
@@ -264,6 +265,111 @@ export class WYSIWYGView {
       });
     } catch (error) {
       console.error('[WYSIWYGView] Error setting cursor:', error);
+    }
+  }
+
+  /**
+   * Get cursor position as absolute character offset in raw markdown
+   * @param {string} markdown - The raw markdown content
+   * @returns {number} Absolute character offset in raw markdown
+   */
+  getAbsoluteCursor(markdown) {
+    try {
+      let renderedOffset = 0;
+
+      this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state } = view;
+        const { from } = state.selection;
+        const { doc } = state;
+
+        // Count actual text characters up to cursor position
+        let charCount = 0;
+        doc.nodesBetween(0, from, (node, pos) => {
+          if (node.isText) {
+            const endPos = pos + node.nodeSize;
+            if (endPos <= from) {
+              // Entire text node is before cursor
+              charCount += node.text.length;
+            } else {
+              // Cursor is within this text node
+              charCount += from - pos;
+              return false; // Stop iteration
+            }
+          } else if (node.isBlock && pos > 0 && pos < from) {
+            // Add newline for block boundaries (except the first one)
+            charCount += 1;
+          }
+        });
+
+        renderedOffset = charCount;
+      });
+
+      // Convert rendered position to raw markdown position
+      return renderedOffsetToMarkdown(markdown, renderedOffset);
+    } catch (error) {
+      console.error('[WYSIWYGView] Error getting absolute cursor:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Set cursor position by absolute character offset in raw markdown
+   * @param {number} offset - Absolute character offset in raw markdown
+   * @param {string} markdown - The raw markdown content
+   */
+  setAbsoluteCursor(offset, markdown) {
+    try {
+      // Convert raw markdown position to rendered text position
+      const renderedOffset = markdownOffsetToRendered(markdown, offset);
+
+      this.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state, dispatch } = view;
+        const { doc } = state;
+
+        // Walk the document tree to find the ProseMirror position
+        // that corresponds to the rendered text offset
+        let currentCharCount = 0;
+        let targetPos = 1;
+        let found = false;
+
+        doc.descendants((node, pos) => {
+          if (found) return false;
+
+          if (node.isText) {
+            const textLength = node.text.length;
+            if (currentCharCount + textLength >= renderedOffset) {
+              // Cursor is in this text node
+              const offsetInNode = renderedOffset - currentCharCount;
+              targetPos = pos + offsetInNode;
+              found = true;
+              return false;
+            }
+            currentCharCount += textLength;
+          } else if (node.isBlock && pos > 0) {
+            // Count block boundary as newline (except the first block)
+            if (currentCharCount >= renderedOffset) {
+              // Cursor is at this block boundary
+              targetPos = pos;
+              found = true;
+              return false;
+            }
+            currentCharCount += 1;
+          }
+        });
+
+        // If not found, position is at the end
+        if (!found) {
+          targetPos = doc.content.size;
+        }
+
+        const safePos = Math.max(1, Math.min(targetPos, doc.content.size));
+        const selection = TextSelection.create(doc, safePos);
+        dispatch(state.tr.setSelection(selection).scrollIntoView());
+      });
+    } catch (error) {
+      console.error('[WYSIWYGView] Error setting absolute cursor:', error);
     }
   }
 

@@ -250,6 +250,32 @@ export class SourceView {
   }
 
   /**
+   * Get cursor position as absolute character offset in the document
+   * @returns {number} Absolute character offset
+   */
+  getAbsoluteCursor() {
+    return this.view.state.selection.main.head;
+  }
+
+  /**
+   * Set cursor position by absolute character offset
+   * @param {number} offset - Absolute character offset in the document
+   */
+  setAbsoluteCursor(offset) {
+    try {
+      const docLength = this.view.state.doc.length;
+      const safeOffset = Math.max(0, Math.min(offset, docLength));
+
+      this.view.dispatch({
+        selection: { anchor: safeOffset, head: safeOffset },
+        scrollIntoView: true,
+      });
+    } catch (error) {
+      console.error('[SourceView] Error setting absolute cursor:', error);
+    }
+  }
+
+  /**
    * Get total number of lines in document
    */
   getLineCount() {

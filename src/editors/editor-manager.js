@@ -63,9 +63,14 @@ export class EditorManager {
     }
 
     // 1. Capture state from current editor
+    const content = this.currentEditor.getContent();
     const state = {
-      content: this.currentEditor.getContent(),
-      cursor: this.currentEditor.getCursor(),
+      content,
+      // Store cursor as absolute position in raw markdown (source of truth)
+      cursorOffset:
+        this.currentMode === 'source'
+          ? this.currentEditor.getAbsoluteCursor()
+          : this.currentEditor.getAbsoluteCursor(content),
       scroll: this.currentEditor.getScrollPosition(),
     };
 
@@ -101,8 +106,12 @@ export class EditorManager {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    // Set cursor and scroll
-    this.currentEditor.setCursor(state.cursor.line, state.cursor.column);
+    // Set cursor using absolute position (pass markdown content for WYSIWYG)
+    if (newMode === 'source') {
+      this.currentEditor.setAbsoluteCursor(state.cursorOffset);
+    } else {
+      this.currentEditor.setAbsoluteCursor(state.cursorOffset, state.content);
+    }
     this.currentEditor.setScrollPosition(state.scroll);
 
     // Wait one more frame before focusing
