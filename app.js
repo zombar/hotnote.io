@@ -1180,6 +1180,9 @@ const trashManager = createTrashManager({
   },
 });
 
+// Expose trashManager for file-picker module
+window.trashManager = trashManager;
+
 // Create autosave manager with callbacks
 const autosaveManager = createAutosaveManager({
   interval: 2000,
