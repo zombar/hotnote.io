@@ -5,6 +5,8 @@
  * allowing users to create comments on the selected text.
  */
 
+import { appState } from '../state/app-state.js';
+
 export class CommentToolbar {
   constructor(container, onAddComment) {
     this.container = container;
@@ -62,6 +64,11 @@ export class CommentToolbar {
    * @param {object} selection - Selection object {from, to, text}
    */
   show(x, y, selection) {
+    // Don't show toolbar in read-only mode (GitHub or other remote files)
+    if (appState.isGitHubMode || appState.isReadOnly) {
+      return;
+    }
+
     // Don't show toolbar if panel is visible
     if (this.panel && this.panel.isVisible()) {
       return;
