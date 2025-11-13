@@ -1,6 +1,6 @@
 # [hotnote.io](https://hotnote.io)
 
-![Tests](https://img.shields.io/badge/tests-1228%20passing-success)
+![Tests](https://img.shields.io/badge/tests-1373%20passing-success)
 ![Build](https://img.shields.io/badge/build-passing-success)
 ![Size](https://img.shields.io/badge/size-514KB%20gzipped-blue)
 
@@ -52,7 +52,7 @@ make validate  # lint + format checks
 make coverage  # run tests with coverage report
 ```
 
-**1018 tests** covering core functionality, file operations, navigation, edge cases, and event listener management.
+**1373 tests** covering core functionality, file operations, navigation, edge cases, commenting system, and event listener management.
 
 ## Browser Support
 

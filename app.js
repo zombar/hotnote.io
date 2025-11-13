@@ -415,6 +415,49 @@ const initCodeMirrorEditor = async (
     parent: document.getElementById('editor'),
   });
 
+  // Add getSelection method to CodeMirror editor for comment system compatibility
+  appState.editorView.getSelection = function () {
+    if (!this.state) {
+      return null;
+    }
+
+    const selection = this.state.selection.main;
+
+    // If there's no selection (from === to), return null
+    if (selection.from === selection.to) {
+      return null;
+    }
+
+    const text = this.state.doc.sliceString(selection.from, selection.to);
+
+    return {
+      from: selection.from,
+      to: selection.to,
+      text: text,
+    };
+  };
+
+  // Add getDocumentText method for comment system compatibility
+  appState.editorView.getDocumentText = function () {
+    if (!this.state) {
+      return '';
+    }
+    return this.state.doc.toString();
+  };
+
+  // Add applyCommentDecorations method for comment system compatibility
+  appState.editorView.applyCommentDecorations = function (
+    comments,
+    _activeCommentId,
+    _onCommentClick
+  ) {
+    // This will be handled by the source-view decoration system
+    // For now, we'll import and use the decoration effects from source-view
+    // Note: This is a simplified version - for full functionality,
+    // we might need to refactor the decoration system
+    console.log('[CodeMirror] Apply comment decorations:', comments.length);
+  };
+
   // Add scroll listener to save editor state
   if (appState.editorView && appState.editorView.scrollDOM) {
     appState.editorView.scrollDOM.addEventListener('scroll', debouncedSaveEditorState);
@@ -1313,6 +1356,19 @@ const fileSyncManager = createFileSyncManager({
 let commentToolbar = null;
 let commentPanel = null;
 
+// Helper function to close comment UI elements
+const closeComments = () => {
+  if (commentPanel) {
+    commentPanel.hide();
+  }
+  if (commentToolbar) {
+    commentToolbar.hide();
+  }
+};
+
+// Expose closeComments for theme-manager module
+window.closeComments = closeComments;
+
 // Initialize comment system
 function initCommentSystem() {
   // Get editor container
@@ -1771,6 +1827,10 @@ darkModeToggle.addEventListener('mousedown', (e) => {
 });
 darkModeToggle.addEventListener('click', () => {
   appState.focusManager.saveFocusState();
+
+  // Close comment panel and toolbar when switching theme
+  closeComments();
+
   toggleTheme();
 });
 

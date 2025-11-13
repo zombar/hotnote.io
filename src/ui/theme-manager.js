@@ -74,6 +74,12 @@ export async function toggleTheme() {
     localStorage.setItem('theme', 'dark');
   }
 
+  // Close comment panel and toolbar before reinitializing editor
+  if (typeof closeComments !== 'undefined') {
+    // eslint-disable-next-line no-undef
+    closeComments();
+  }
+
   // Reinitialize editor with new theme colors (skip in GitHub reader mode)
   await reinitializeEditorWithTheme();
 }
@@ -124,6 +130,12 @@ function setupSystemThemeListener() {
         if (icon) icon.textContent = 'dark_mode';
         if (darkModeToggle) darkModeToggle.title = 'Switch to dark mode';
         if (themeColorMeta) themeColorMeta.setAttribute('content', '#e91e8c');
+      }
+
+      // Close comment panel and toolbar before reinitializing editor
+      if (typeof closeComments !== 'undefined') {
+        // eslint-disable-next-line no-undef
+        closeComments();
       }
 
       // Re-initialize editor with new theme colors
