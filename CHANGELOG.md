@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.20.0](https://github.com/zombar/hotnote.io/compare/v1.19.2...v1.20.0) (2025-11-13)
+
+
+### Features
+
+* barebones comment system ([#89](https://github.com/zombar/hotnote.io/issues/89)) ([15acc60](https://github.com/zombar/hotnote.io/commit/15acc605c30b985b30acb96858d1d414def2731c))
+* hit [esc] and use : to navigate lines ([#87](https://github.com/zombar/hotnote.io/issues/87)) ([211c582](https://github.com/zombar/hotnote.io/commit/211c5825f492e35b9a1e0504b4d22496bccd926e))
+
 ## [1.19.2](https://github.com/zombar/hotnote.io/compare/v1.19.1...v1.19.2) (2025-11-12)
 
 
