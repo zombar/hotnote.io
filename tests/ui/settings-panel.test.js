@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SettingsPanel } from '../../src/ui/settings-panel.js';
+import * as environment from '../../src/utils/environment.js';
 
 describe('Settings Panel', () => {
   let settingsPanel;
@@ -9,6 +10,10 @@ describe('Settings Panel', () => {
   beforeEach(() => {
     // Clear localStorage
     localStorage.clear();
+
+    // Mock environment as hosted by default
+    // This ensures the privacy banner is shown in tests (shown when hosted)
+    vi.spyOn(environment, 'isLocalEnvironment').mockReturnValue(false);
 
     // Create mock active editor with blur/focus capabilities
     mockActiveEditor = {

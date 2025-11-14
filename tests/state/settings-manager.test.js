@@ -19,16 +19,19 @@ describe('Settings Manager', () => {
     it('should return default settings when no settings are stored', () => {
       const settings = getSettings();
 
-      expect(settings).toEqual({
-        ollama: {
-          endpoint: 'http://localhost:11434',
-          model: 'llama2',
-          systemPrompt:
-            'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone. Include only the replacement text in your response.',
-          temperature: 0.7,
-          topP: 0.9,
-        },
+      // Check structure includes all provider settings
+      expect(settings.provider).toBe('ollama');
+      expect(settings.ollama).toEqual({
+        endpoint: 'http://localhost:11434',
+        model: 'llama2',
+        systemPrompt:
+          'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone. Include only the replacement text in your response.',
+        temperature: 0.7,
+        topP: 0.9,
       });
+      expect(settings.claude).toBeDefined();
+      expect(settings.openai).toBeDefined();
+      expect(settings.apiKeys).toBeDefined();
     });
 
     it('should have valid default endpoint URL', () => {
@@ -64,7 +67,10 @@ describe('Settings Manager', () => {
       localStorage.setItem('hotnote_settings', JSON.stringify(customSettings));
 
       const loaded = loadSettings();
-      expect(loaded).toEqual(customSettings);
+      // Settings are merged with defaults, so check specific fields
+      expect(loaded.ollama).toEqual(customSettings.ollama);
+      expect(loaded.provider).toBeDefined();
+      expect(loaded.apiKeys).toBeDefined();
     });
 
     it('should return default settings if localStorage is empty', () => {
@@ -115,7 +121,9 @@ describe('Settings Manager', () => {
       expect(stored).toBeTruthy();
 
       const parsed = JSON.parse(stored);
-      expect(parsed).toEqual(newSettings);
+      // Settings are merged with defaults, so check specific fields
+      expect(parsed.ollama).toEqual(newSettings.ollama);
+      expect(parsed.provider).toBeDefined();
     });
 
     it('should overwrite existing settings', () => {

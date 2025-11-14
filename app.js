@@ -1479,6 +1479,12 @@ async function handleAIImprove(selection) {
   // Store selection positions and original text for error recovery
   const { from, to, text: originalText } = selection;
 
+  // Create abort controller for canceling requests
+  /* global AbortController */
+  const controller = new AbortController();
+  let currentPosition = from;
+  let streamedText = '';
+
   try {
     // Disable autosave when AI makes edits
     if (autosaveManager && autosaveManager.isRunning()) {
@@ -1500,21 +1506,44 @@ async function handleAIImprove(selection) {
       editor.addAILoadingDecoration(from, to);
     }
 
-    console.log('[AI] Calling AI service...');
+    console.log('[AI] Calling AI service with streaming...');
 
-    // Call AI service
-    const improvedText = await improveText(originalText);
+    // Track if this is the first chunk to properly replace original selection
+    let isFirstChunk = true;
 
-    console.log('[AI] Received improved text:', improvedText);
+    // Streaming callback to update text in real-time
+    const onChunk = (chunk) => {
+      if (!chunk) return;
+
+      streamedText += chunk;
+
+      // Replace text incrementally during streaming
+      if (editor.replaceRange) {
+        if (isFirstChunk) {
+          // First chunk: replace the original selection (from -> to)
+          editor.replaceRange(from, to, streamedText);
+          isFirstChunk = false;
+        } else {
+          // Subsequent chunks: replace from start to current position
+          editor.replaceRange(from, currentPosition, streamedText);
+        }
+        currentPosition = from + streamedText.length;
+      }
+    };
+
+    // Call AI service with streaming support
+    const improvedText = await improveText(originalText, onChunk, controller.signal);
+
+    console.log('[AI] Received complete improved text');
 
     // Remove loading decoration
     if (editor.removeAILoadingDecoration) {
       editor.removeAILoadingDecoration();
     }
 
-    // Replace text at original selection positions with improved version
-    if (editor.replaceRange) {
-      editor.replaceRange(from, to, improvedText);
+    // Final replacement with complete text (in case streaming didn't work)
+    if (editor.replaceRange && streamedText !== improvedText) {
+      editor.replaceRange(from, currentPosition, improvedText);
     } else if (editor.replaceSelection) {
       // Fallback for editors without replaceRange
       editor.replaceSelection(improvedText);
@@ -1532,12 +1561,17 @@ async function handleAIImprove(selection) {
       editor.removeAILoadingDecoration();
     }
 
+    // Restore original text if streaming failed partway through
+    if (streamedText && editor.replaceRange) {
+      editor.replaceRange(from, currentPosition, originalText);
+    }
+
     // Refresh comment decorations to restore any existing comment highlights
     refreshCommentDecorations();
 
-    // Show error to user
+    // Show error to user with provider-agnostic message
     alert(
-      `AI improvement failed: ${error.message}\n\nPlease check your Ollama configuration in Settings.`
+      `AI improvement failed: ${error.message}\n\nPlease check your AI provider configuration in Settings.`
     );
   }
 }

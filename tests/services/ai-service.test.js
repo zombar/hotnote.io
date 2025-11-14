@@ -6,11 +6,45 @@ import {
   improveText,
   parseStreamingResponse,
 } from '../../src/services/ai-service.js';
+import * as settingsManager from '../../src/state/settings-manager.js';
+import * as environment from '../../src/utils/environment.js';
 
 describe('AI Service', () => {
   beforeEach(() => {
     // Mock fetch
     global.fetch = vi.fn();
+
+    // Mock environment as local so Ollama provider is available in tests
+    vi.spyOn(environment, 'isLocalEnvironment').mockReturnValue(true);
+
+    // Mock settings to use Ollama provider by default
+    vi.spyOn(settingsManager, 'getSettings').mockReturnValue({
+      provider: 'ollama',
+      ollama: {
+        endpoint: 'http://localhost:11434',
+        model: 'llama2',
+        systemPrompt:
+          'You are a helpful AI assistant. Improve the provided text while maintaining its original meaning and tone. Include only the replacement text in your response.',
+        temperature: 0.7,
+        topP: 0.9,
+      },
+      apiKeys: {
+        openai: '',
+        claude: '',
+      },
+      openai: {
+        model: 'gpt-4o-mini',
+        systemPrompt: 'You are a helpful AI assistant.',
+        temperature: 0.7,
+        topP: 0.9,
+      },
+      claude: {
+        model: 'claude-3-haiku-20240307',
+        systemPrompt: 'You are a helpful AI assistant.',
+        temperature: 0.7,
+        topP: 0.9,
+      },
+    });
   });
 
   afterEach(() => {
