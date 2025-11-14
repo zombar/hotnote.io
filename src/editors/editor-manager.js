@@ -1,5 +1,6 @@
 import { WYSIWYGView } from './wysiwyg-view.js';
 import { SourceView } from './source-view.js';
+import { aiQueue } from '../services/ai-queue.js';
 
 /**
  * EditorManager - Manages switching between WYSIWYG and Source modes
@@ -113,6 +114,25 @@ export class EditorManager {
       this.currentEditor.setAbsoluteCursor(state.cursorOffset, state.content);
     }
     this.currentEditor.setScrollPosition(state.scroll);
+
+    // Re-apply AI loading decorations BEFORE focusing
+    // (focus might trigger editor state changes)
+    const activeDecorations = aiQueue.getActiveDecorations();
+    if (activeDecorations.length > 0) {
+      console.log(
+        '[EditorManager] Re-applying',
+        activeDecorations.length,
+        'AI decorations after mode switch'
+      );
+
+      // Wait a bit longer for editor to fully stabilize
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      for (const { from, to } of activeDecorations) {
+        console.log('[EditorManager] Re-applying decoration:', from, '-', to);
+        this.addAILoadingDecoration(from, to);
+      }
+    }
 
     // Wait one more frame before focusing
     await this.nextFrame();
