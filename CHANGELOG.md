@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.0](https://github.com/zombar/hotnote.io/compare/v1.20.7...v1.21.0) (2025-11-14)
+
+
+### Features
+
+* ai replacement text, comments & settings panel ([#107](https://github.com/zombar/hotnote.io/issues/107)) ([3de714a](https://github.com/zombar/hotnote.io/commit/3de714a6d23b6e3290f08f25ecab95635fb45b4b))
+
 ## [1.20.7](https://github.com/zombar/hotnote.io/compare/v1.20.6...v1.20.7) (2025-11-14)
 
 
