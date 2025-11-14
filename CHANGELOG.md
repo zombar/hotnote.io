@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.1](https://github.com/zombar/hotnote.io/compare/v1.21.0...v1.21.1) (2025-11-14)
+
+
+### Bug Fixes
+
+* disable comment in rich text mode ([#110](https://github.com/zombar/hotnote.io/issues/110)) ([4b8d772](https://github.com/zombar/hotnote.io/commit/4b8d77239960bdd7e0b55bac165b6dbfcc1fb7f0))
+
 ## [1.21.0](https://github.com/zombar/hotnote.io/compare/v1.20.7...v1.21.0) (2025-11-14)
 
 
