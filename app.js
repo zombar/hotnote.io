@@ -1497,7 +1497,7 @@ function refreshCommentDecorations() {
   const editor = appState.editorManager?.currentEditor || appState.editorView;
   if (!editor) return;
 
-  const currentFile = appState.currentFilename;
+  const currentFile = getRelativeFilePath();
   const fileComments = appState.getCommentsForFile(currentFile);
 
   // Convert anchors to positions
