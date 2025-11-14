@@ -2896,3 +2896,128 @@ body.dark .comment-panel {
 .settings-cancel-button:hover {
   background: var(--bg-tertiary);
 }
+
+/* ===========================
+   AI Model Progress Toast
+   =========================== */
+
+/* Toast container - bottom-left, non-blocking */
+.model-progress-toast {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+  pointer-events: auto;
+}
+
+.model-progress-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Progress card */
+.model-progress-container {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  min-width: 320px;
+  max-width: 400px;
+  box-shadow: 0 4px 20px rgb(0 0 0 / 15%);
+}
+
+[data-theme='dark'] .model-progress-container {
+  box-shadow: 0 4px 20px rgb(0 0 0 / 50%);
+}
+
+/* Header */
+.model-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.model-progress-title {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* Status text */
+.model-progress-status {
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+/* Progress bar background */
+.model-progress-bar-container {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  height: 6px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+  position: relative;
+}
+
+/* Progress bar fill with gradient */
+.model-progress-bar {
+  background: linear-gradient(90deg, var(--brand-cyan), var(--brand-purple));
+  height: 100%;
+  width: 0%;
+  transition: width 0.3s ease;
+  border-radius: 4px;
+}
+
+/* Progress percentage text */
+.model-progress-text {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  text-align: right;
+  opacity: 0.8;
+}
+
+/* Responsive: Adjust size on smaller screens */
+@media (width <= 480px) {
+  .model-progress-toast {
+    left: 0.5rem;
+    bottom: 0.5rem;
+  }
+
+  .model-progress-container {
+    min-width: 280px;
+    max-width: 320px;
+    padding: 0.875rem 1rem;
+  }
+
+  .model-progress-title {
+    font-size: 0.875rem;
+  }
+
+  .model-progress-status {
+    font-size: 0.8rem;
+  }
+}
+
+/* Animation for queue count changes */
+.model-progress-status.updating {
+  animation: pulse 0.3s ease-in-out;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}

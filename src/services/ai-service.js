@@ -6,6 +6,55 @@
 
 import { getSettings } from '../state/settings-manager.js';
 import { OllamaProvider } from './providers/ollama-provider.js';
+import { WebLLMProvider } from './providers/webllm-provider.js';
+import { TransformersJSProvider } from './providers/transformersjs-provider.js';
+import { isLocalEnvironment } from '../utils/environment.js';
+
+/**
+ * Clean AI response to extract only the improved text
+ * Removes common preambles, explanations, and wrapper text
+ */
+export function cleanAIResponse(response) {
+  let cleaned = response.trim();
+
+  // Remove common preambles (case-insensitive)
+  const preambles = [
+    /^(?:here(?:'s| is)|sure[,!]?|okay[,!]?|certainly[,!]?|of course[,!]?|i(?:'d| would) be happy to|i can help|let me|here you go)[^\n]*(?:\n|:)/gi,
+    /^(?:improved|revised|edited|updated|enhanced|better|new) (?:text|version)[:\s]*\n*/gi,
+    /^(?:the )?(?:improved|revised|edited) (?:text|version) is[:\s]*\n*/gi,
+  ];
+
+  for (const pattern of preambles) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+
+  // Remove quotes/backticks if the entire response is wrapped
+  if (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith("'") && cleaned.endsWith("'")) ||
+    (cleaned.startsWith('`') && cleaned.endsWith('`'))
+  ) {
+    cleaned = cleaned.slice(1, -1);
+  }
+
+  // Remove code block markers if entire response is wrapped
+  if (cleaned.startsWith('```') && cleaned.endsWith('```')) {
+    cleaned = cleaned.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
+  }
+
+  // Remove trailing explanations (text after the improved content)
+  // Look for phrases like "I've improved...", "Changes made:", etc.
+  const explanationPatterns = [
+    /\n+(?:i(?:'ve| have)|changes|improvements|notes?|explanation)[:\s][^\n]*$/gi,
+    /\n+(?:let me know|feel free|if you|hope this helps)[^\n]*$/gi,
+  ];
+
+  for (const pattern of explanationPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+
+  return cleaned.trim();
+}
 
 /**
  * Extract comments from text
@@ -52,18 +101,150 @@ export function extractCommentsFromText(text) {
 }
 
 /**
- * Create Ollama provider instance based on settings
+ * Provider registry
+ */
+const PROVIDERS = {
+  ollama: OllamaProvider,
+  webllm: WebLLMProvider,
+  transformersjs: TransformersJSProvider,
+};
+
+/**
+ * Create provider instance based on settings
  */
 function createProvider(settings) {
-  const config = {
-    endpoint: settings.endpoint,
-    model: settings.model,
-    systemPrompt: settings.systemPrompt,
-    temperature: settings.temperature,
-    topP: settings.topP,
-  };
+  let provider = settings.provider || 'webllm'; // Default to browser-based AI
 
-  return new OllamaProvider(config);
+  // Browser-based AI fallback logic
+  // If WebLLM is selected but WebGPU is not available, fall back to Transformers.js
+  if (provider === 'webllm' && !WebLLMProvider.isSupported()) {
+    console.warn(
+      '[AI] WebLLM requires WebGPU which is not available in this browser. Falling back to Transformers.js.'
+    );
+    provider = 'transformersjs';
+  }
+
+  // Environment-based fallback logic
+  if (isLocalEnvironment()) {
+    // When running locally, cloud APIs don't work due to CORS
+    // Fall back to Ollama if a cloud provider is selected
+    if (provider === 'claude' || provider === 'openai') {
+      console.warn(
+        `[AI] ${provider} is not available when running locally due to CORS. Falling back to Ollama.`
+      );
+      provider = 'ollama';
+    }
+  } else {
+    // When hosted, Ollama doesn't work due to mixed content (HTTPS → HTTP)
+    // Fall back to WebLLM if Ollama is selected
+    if (provider === 'ollama') {
+      console.warn(
+        '[AI] Ollama is not available on hosted site due to mixed content policy. Falling back to WebLLM.'
+      );
+      provider = 'webllm';
+      // Check WebGPU again after fallback
+      if (!WebLLMProvider.isSupported()) {
+        console.warn('[AI] WebGPU not available. Falling back to Transformers.js.');
+        provider = 'transformersjs';
+      }
+    }
+  }
+
+  const ProviderClass = PROVIDERS[provider];
+
+  if (!ProviderClass) {
+    throw new Error(`Unknown AI provider: ${provider}`);
+  }
+
+  // Build provider config based on provider type
+  let config;
+  if (provider === 'ollama') {
+    config = {
+      endpoint: settings.ollama?.endpoint,
+      model: settings.ollama?.model,
+      systemPrompt: settings.ollama?.systemPrompt,
+      temperature: settings.ollama?.temperature,
+      topP: settings.ollama?.topP,
+    };
+  } else if (provider === 'webllm') {
+    config = {
+      model: settings.webllm?.model,
+      systemPrompt: settings.webllm?.systemPrompt,
+      temperature: settings.webllm?.temperature,
+      topP: settings.webllm?.topP,
+    };
+  } else if (provider === 'transformersjs') {
+    config = {
+      model: settings.transformersjs?.model,
+      systemPrompt: settings.transformersjs?.systemPrompt,
+      temperature: settings.transformersjs?.temperature,
+      topP: settings.transformersjs?.topP,
+      dtype: settings.transformersjs?.dtype,
+    };
+  } else {
+    // OpenAI and Claude use API keys
+    config = {
+      apiKey: settings.apiKeys?.[provider],
+      model: settings[provider]?.model,
+      systemPrompt: settings[provider]?.systemPrompt,
+      temperature: settings[provider]?.temperature,
+      topP: settings[provider]?.topP,
+    };
+  }
+
+  return new ProviderClass(config);
+}
+
+/**
+ * Get available providers based on environment
+ * - Local (localhost): Browser AI + Ollama (cloud APIs blocked by CORS)
+ * - Hosted (hotnote.io): Browser AI + cloud APIs (Ollama blocked by mixed content)
+ */
+export function getAvailableProviders() {
+  const providers = [];
+
+  // Browser-based AI is always available
+  if (WebLLMProvider.isSupported()) {
+    providers.push({ value: 'webllm', label: 'WebLLM (Browser, WebGPU)' });
+  }
+  providers.push({ value: 'transformersjs', label: 'Transformers.js (Browser, CPU/GPU)' });
+
+  // When running locally (localhost), only Ollama works
+  // Cloud APIs (Claude, OpenAI) are blocked by CORS policy
+  if (isLocalEnvironment()) {
+    providers.push({ value: 'ollama', label: 'Ollama (Local Server)' });
+  } else {
+    // When hosted (hotnote.io), only cloud APIs work
+    // Ollama (localhost) is blocked by mixed content policy (HTTPS → HTTP)
+    providers.push({ value: 'claude', label: 'Claude (Anthropic)' });
+    providers.push({ value: 'openai', label: 'ChatGPT (OpenAI)' });
+  }
+
+  return providers;
+}
+
+/**
+ * Get models for a specific provider
+ */
+export function getModelsForProvider(provider) {
+  const ProviderClass = PROVIDERS[provider];
+  if (!ProviderClass) {
+    return [];
+  }
+  return ProviderClass.getAvailableModels();
+}
+
+/**
+ * Global progress callback function
+ */
+let progressCallback = null;
+
+/**
+ * Set progress callback for model loading
+ * @param {Function} callback - Progress callback function
+ */
+export function setModelProgressCallback(callback) {
+  progressCallback = callback;
 }
 
 /**
@@ -82,6 +263,20 @@ export async function improveText(text, onChunk = null, signal = null) {
   // Create provider
   const provider = createProvider(settings);
 
+  // Log system prompt being used (for debugging)
+  const providerName = settings.provider || 'webllm';
+  const systemPrompt = settings[providerName]?.systemPrompt;
+  console.log('[AI Service] Using provider:', providerName);
+  console.log('[AI Service] System prompt:', systemPrompt || '(using default)');
+
+  // Set progress callback on provider if it supports it
+  if (progressCallback && provider.setProgressCallback) {
+    console.log('[AI Service] Setting progress callback on provider');
+    provider.setProgressCallback(progressCallback);
+  } else if (progressCallback) {
+    console.log('[AI Service] Provider does not support progress callbacks');
+  }
+
   // Extract comments from text
   const { comments, textWithoutComments } = extractCommentsFromText(text);
 
@@ -99,7 +294,16 @@ export async function improveText(text, onChunk = null, signal = null) {
       abortSignal
     );
 
-    return improvedText;
+    // Clean the response to remove preambles and explanations
+    const cleanedText = cleanAIResponse(improvedText);
+
+    console.log('[AI Service] Response cleaning:', {
+      originalLength: improvedText.length,
+      cleanedLength: cleanedText.length,
+      removed: improvedText.length - cleanedText.length,
+    });
+
+    return cleanedText;
   } catch (error) {
     // Re-throw error to be handled by caller
     throw error;

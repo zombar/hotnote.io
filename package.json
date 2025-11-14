@@ -49,6 +49,7 @@
     "@codemirror/legacy-modes": "^6.5.2",
     "@codemirror/state": "^6.4.1",
     "@codemirror/view": "^6.34.1",
+    "@huggingface/transformers": "^3.7.6",
     "@milkdown/core": "^7.17.1",
     "@milkdown/ctx": "^7.17.1",
     "@milkdown/plugin-history": "^7.17.1",
@@ -58,6 +59,7 @@
     "@milkdown/prose": "^7.17.1",
     "@milkdown/theme-nord": "^7.17.1",
     "@milkdown/utils": "^7.17.1",
+    "@mlc-ai/web-llm": "^0.2.79",
     "codemirror": "^6.0.1"
   },
   "devDependencies": {

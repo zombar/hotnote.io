@@ -63,7 +63,9 @@ import { validateAllComments } from './src/utils/comment-validator.js';
 import { CommentToolbar } from './src/ui/comment-toolbar.js';
 import { CommentPanel } from './src/ui/comment-panel.js';
 import { SettingsPanel } from './src/ui/settings-panel.js';
-import { improveText } from './src/services/ai-service.js';
+import { ModelProgressUI } from './src/ui/model-progress.js';
+import { setModelProgressCallback } from './src/services/ai-service.js';
+import { aiQueue } from './src/services/ai-queue.js';
 import {
   EditorView,
   keymap,
@@ -167,6 +169,18 @@ window.updateBreadcrumb = updateBreadcrumb;
 const initEditor = async (initialContent = '', filename = 'untitled') => {
   // Store original content for undo detection
   appState.originalContent = initialContent;
+
+  // Clear AI queue when switching documents (positions would be invalid)
+  if (aiQueue) {
+    console.log('[App] Clearing AI queue due to document switch');
+    aiQueue.clear();
+    aiQueue.clearDecorations();
+
+    // Hide progress UI if visible
+    if (modelProgressUI && modelProgressUI.visible) {
+      modelProgressUI.hide();
+    }
+  }
 
   // Clear old editors
   if (appState.editorManager) {
@@ -1446,6 +1460,9 @@ let commentPanel = null;
 // Settings panel
 let settingsPanel = null;
 
+// Model progress UI
+let modelProgressUI = null;
+
 // Helper function to close comment UI elements
 const closeComments = () => {
   if (commentPanel) {
@@ -1466,7 +1483,7 @@ window.commentPanel = commentPanel;
 // Expose settings panel for testing and toolbar access
 window.settingsPanel = settingsPanel;
 
-// Handle AI text improvement
+// Handle AI text improvement (with queue support)
 async function handleAIImprove(selection) {
   console.log('[AI] Improving text:', selection);
 
@@ -1479,91 +1496,113 @@ async function handleAIImprove(selection) {
   // Store selection positions and original text for error recovery
   const { from, to, text: originalText } = selection;
 
+  // Apply AI loading decoration immediately (pulsating outline)
+  if (editor.addAILoadingDecoration) {
+    editor.addAILoadingDecoration(from, to);
+    aiQueue.addDecoration(from, to); // Track decoration for persistence across mode switches
+    console.log('[AI] Loading decoration applied to range:', from, '-', to);
+  }
+
+  // Check if already processing and show queue notification
+  if (aiQueue.isBusy()) {
+    console.log('[AI] Request queued (AI is busy)');
+    // Show toast notification that request was queued
+    if (modelProgressUI && !modelProgressUI.visible) {
+      modelProgressUI.show();
+    }
+    if (modelProgressUI) {
+      modelProgressUI.showQueueInfo(aiQueue.size() + 1);
+    }
+  }
+
+  // Disable autosave when AI makes edits
+  if (autosaveManager && autosaveManager.isRunning()) {
+    autosaveManager.stop();
+    appState.setAutosaveEnabled(false);
+    console.log('[AI] Autosave disabled during AI operation');
+
+    // Update autosave checkbox UI
+    const autosaveCheckbox = document.getElementById('autosave-checkbox');
+    if (autosaveCheckbox) {
+      autosaveCheckbox.checked = false;
+      // Animate label to show autosave is off
+      animateAutosaveLabel(false);
+    }
+  }
+
   // Create abort controller for canceling requests
   /* global AbortController */
   const controller = new AbortController();
-  let currentPosition = from;
+  let currentEndPosition = to; // Track where the replaced text ends
   let streamedText = '';
+  let streamingWorked = false; // Track if streaming actually happened
 
-  try {
-    // Disable autosave when AI makes edits
-    if (autosaveManager && autosaveManager.isRunning()) {
-      autosaveManager.stop();
-      appState.setAutosaveEnabled(false);
-      console.log('[AI] Autosave disabled during AI operation');
+  // Streaming callback to update text in real-time
+  const onChunk = (chunk) => {
+    if (!chunk) return;
 
-      // Update autosave checkbox UI
-      const autosaveCheckbox = document.getElementById('autosave-checkbox');
-      if (autosaveCheckbox) {
-        autosaveCheckbox.checked = false;
-        // Animate label to show autosave is off
-        animateAutosaveLabel(false);
+    streamingWorked = true; // Mark that streaming is working
+    streamedText += chunk;
+
+    // Replace text incrementally during streaming
+    if (editor.replaceRange) {
+      // Replace from original start to current end with accumulated streamed text
+      // This ensures we're always replacing within/around the original selection
+      editor.replaceRange(from, currentEndPosition, streamedText);
+      currentEndPosition = from + streamedText.length;
+    }
+  };
+
+  // Completion callback
+  const onComplete = (improvedText) => {
+    console.log('[AI] Received complete improved text', {
+      streamingWorked,
+      streamedLength: streamedText.length,
+      improvedLength: improvedText.length,
+    });
+
+    // Only do final replacement if streaming didn't work or text differs
+    if (editor.replaceRange) {
+      if (!streamingWorked || streamedText !== improvedText) {
+        // Replace within bounds (from -> current end position or original 'to')
+        const endPos = streamingWorked ? currentEndPosition : to;
+        editor.replaceRange(from, endPos, improvedText);
+        console.log('[AI] Final text replacement:', { from, to: endPos });
+      } else {
+        console.log('[AI] Streaming complete, no final replacement needed');
       }
+    } else if (editor.replaceSelection) {
+      // Fallback for editors without replaceRange - this should rarely happen
+      console.warn('[AI] Using replaceSelection fallback - may not preserve selection bounds');
+      editor.replaceSelection(improvedText);
     }
 
-    // Apply AI loading decoration (pulsating outline) to keep text visible
-    if (editor.addAILoadingDecoration) {
-      editor.addAILoadingDecoration(from, to);
-    }
-
-    console.log('[AI] Calling AI service with streaming...');
-
-    // Track if this is the first chunk to properly replace original selection
-    let isFirstChunk = true;
-
-    // Streaming callback to update text in real-time
-    const onChunk = (chunk) => {
-      if (!chunk) return;
-
-      streamedText += chunk;
-
-      // Replace text incrementally during streaming
-      if (editor.replaceRange) {
-        if (isFirstChunk) {
-          // First chunk: replace the original selection (from -> to)
-          editor.replaceRange(from, to, streamedText);
-          isFirstChunk = false;
-        } else {
-          // Subsequent chunks: replace from start to current position
-          editor.replaceRange(from, currentPosition, streamedText);
-        }
-        currentPosition = from + streamedText.length;
-      }
-    };
-
-    // Call AI service with streaming support
-    const improvedText = await improveText(originalText, onChunk, controller.signal);
-
-    console.log('[AI] Received complete improved text');
-
-    // Remove loading decoration
+    // Remove loading decoration after text is replaced
     if (editor.removeAILoadingDecoration) {
       editor.removeAILoadingDecoration();
-    }
-
-    // Final replacement with complete text (in case streaming didn't work)
-    if (editor.replaceRange && streamedText !== improvedText) {
-      editor.replaceRange(from, currentPosition, improvedText);
-    } else if (editor.replaceSelection) {
-      // Fallback for editors without replaceRange
-      editor.replaceSelection(improvedText);
+      aiQueue.removeDecoration(from, to); // Remove from tracking
+      console.log('[AI] Loading decoration removed');
     }
 
     // Refresh comment decorations to restore any existing comment highlights
     refreshCommentDecorations();
 
     console.log('[AI] Text improvement complete');
-  } catch (error) {
+  };
+
+  // Error callback
+  const onError = (error) => {
     console.error('[AI] Text improvement failed:', error);
 
     // Remove loading decoration on error
     if (editor.removeAILoadingDecoration) {
       editor.removeAILoadingDecoration();
+      aiQueue.removeDecoration(from, to); // Remove from tracking
     }
 
     // Restore original text if streaming failed partway through
     if (streamedText && editor.replaceRange) {
-      editor.replaceRange(from, currentPosition, originalText);
+      editor.replaceRange(from, currentEndPosition, originalText);
     }
 
     // Refresh comment decorations to restore any existing comment highlights
@@ -1573,6 +1612,19 @@ async function handleAIImprove(selection) {
     alert(
       `AI improvement failed: ${error.message}\n\nPlease check your AI provider configuration in Settings.`
     );
+  };
+
+  // Enqueue the request
+  try {
+    await aiQueue.enqueue({
+      selection,
+      onChunk,
+      signal: controller.signal,
+      onComplete,
+      onError,
+    });
+  } catch (error) {
+    onError(error);
   }
 }
 
@@ -1583,6 +1635,40 @@ function initSettingsPanel() {
   });
   window.settingsPanel = settingsPanel; // Update window reference
   console.log('[Settings] Settings panel initialized');
+}
+
+// Initialize model progress UI
+function initModelProgressUI() {
+  modelProgressUI = new ModelProgressUI();
+
+  // Set up progress callback for AI model loading
+  setModelProgressCallback((progress) => {
+    console.log('[ModelProgress] Progress callback received:', progress);
+
+    if (modelProgressUI) {
+      modelProgressUI.updateProgress(progress);
+
+      // Hide progress UI when complete
+      // WebLLM: progress.progress === 1
+      // TransformersJS: progress.status === 'ready' or 'done'
+      const isComplete =
+        progress.progress === 1 ||
+        progress.status === 'ready' ||
+        progress.status === 'done' ||
+        (progress.loaded !== undefined &&
+          progress.total !== undefined &&
+          progress.loaded >= progress.total);
+
+      if (isComplete) {
+        console.log('[ModelProgress] Loading complete, hiding UI');
+        setTimeout(() => {
+          modelProgressUI.hide();
+        }, 500);
+      }
+    }
+  });
+
+  console.log('[ModelProgress] Model progress UI initialized');
 }
 
 // Initialize comment system
@@ -2301,6 +2387,9 @@ initThemeManager();
 
 // Initialize settings panel
 initSettingsPanel();
+
+// Initialize model progress UI
+initModelProgressUI();
 
 // Initialize blur state
 updateEditorBlurState();
