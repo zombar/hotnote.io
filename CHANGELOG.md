@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.2](https://github.com/zombar/hotnote.io/compare/v1.21.1...v1.21.2) (2025-11-14)
+
+
+### Bug Fixes
+
+* local ai provider ([#112](https://github.com/zombar/hotnote.io/issues/112)) ([c2a4d1e](https://github.com/zombar/hotnote.io/commit/c2a4d1e044ec98962de4589ae3ffde244d7e4808))
+
 ## [1.21.1](https://github.com/zombar/hotnote.io/compare/v1.21.0...v1.21.1) (2025-11-14)
 
 
