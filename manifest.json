@@ -1,9 +1,12 @@
 {
+  "id": "/",
   "name": "hotnote",
   "short_name": "hotnote",
   "description": "A lightweight, minimalistic code editor and note-taking app",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "background_color": "#1a1a1a",
   "theme_color": "#ff2d96",
   "orientation": "any",
@@ -11,14 +14,17 @@
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "categories": ["productivity", "utilities"],
-  "screenshots": []
+  "screenshots": [],
+  "prefer_related_applications": false
 }

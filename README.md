@@ -54,6 +54,18 @@ make coverage  # run tests with coverage report
 
 **1373 tests** covering core functionality, file operations, navigation, edge cases, commenting system, and event listener management.
 
+## PWA Installation
+
+Install as a standalone app for offline access:
+
+- **Chrome/Edge**: Click install icon in address bar
+- **Safari (macOS)**: Share → Add to Dock
+- **Safari (iOS)**: Share → Add to Home Screen
+
+**macOS "damaged app" error?** Run: `bash fix-macos-pwa.sh`
+
+See [PWA_INSTALLATION.md](./PWA_INSTALLATION.md) for detailed installation guide and troubleshooting.
+
 ## Browser Support
 
 Best in Chrome/Edge (full File System Access API support).
